@@ -21,7 +21,8 @@ export function buildAuthorizeUrl(input: {
 
 export type TokenSet = {
   accessToken: string;
-  refreshToken: string;
+  /** Null when Buffer does not grant offline_access. The access token still works until expiresAt. */
+  refreshToken: string | null;
   expiresAt: number;
   scope: string;
 };
@@ -49,11 +50,9 @@ export function readTokenSet(payload: unknown, now = Date.now(), previousRefresh
     const description = body.error_description || body.error || "Token response was missing access_token.";
     throw new Error(description);
   }
-  const refreshToken = body.refresh_token || previousRefreshToken;
-  if (!refreshToken) throw new Error("Token response did not include a refresh token. Request the offline_access scope.");
   return {
     accessToken: body.access_token,
-    refreshToken,
+    refreshToken: body.refresh_token || previousRefreshToken || null,
     expiresAt: now + body.expires_in * 1000,
     scope: body.scope ?? DEFAULT_SCOPE,
   };
@@ -93,6 +92,9 @@ export async function refreshAccessToken(input: {
   clientSecret?: string;
   fetchImpl?: typeof fetch;
 }): Promise<TokenSet> {
+  if (!input.refreshToken) {
+    throw new Error("No refresh token.");
+  }
   const fetchImpl = input.fetchImpl ?? fetch;
   const response = await fetchImpl("https://auth.buffer.com/token", {
     method: "POST",

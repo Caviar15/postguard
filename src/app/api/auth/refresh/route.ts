@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { nextAuthStep } from "@/auth/flow";
 import { refreshAccessToken } from "@/auth/oauth";
 import { clearSession, readSession, writeSession } from "@/auth/session";
 import { getConfig } from "@/config";
@@ -10,10 +11,20 @@ function safeNext(value: string | null): string {
   return value;
 }
 
+function reconnect(request: Request): NextResponse {
+  return NextResponse.redirect(new URL("/?auth_error=session_expired", request.url));
+}
+
 export async function GET(request: Request) {
   const nextPath = safeNext(new URL(request.url).searchParams.get("next"));
   const session = await readSession();
   if (!session) return NextResponse.redirect(new URL("/?auth_error=session", request.url));
+  const step = nextAuthStep(session);
+  if (step === "ok") return NextResponse.redirect(new URL(nextPath, request.url));
+  if (step === "reconnect" || !session.refreshToken) {
+    await clearSession();
+    return reconnect(request);
+  }
   const config = getConfig();
   try {
     const tokens = await refreshAccessToken({
@@ -23,9 +34,8 @@ export async function GET(request: Request) {
     });
     await writeSession(tokens);
     return NextResponse.redirect(new URL(nextPath, request.url));
-  } catch (error) {
+  } catch {
     await clearSession();
-    const message = error instanceof Error ? error.message : "refresh_failed";
-    return NextResponse.redirect(new URL(`/?auth_error=${encodeURIComponent(message)}`, request.url));
+    return reconnect(request);
   }
 }

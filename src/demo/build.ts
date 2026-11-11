@@ -175,6 +175,17 @@ export function demoPosts(now: Date): Post[] {
       dueAt: hoursFrom(now, 10),
       text: "Studio hours this Thursday, 10 to 4. Come see the linen series.",
     }),
+    post({
+      id: "post_ig_draft",
+      channelId: "ch_ig",
+      service: "instagram",
+      status: "draft",
+      dueAt: null,
+      text: "TODO finish this draft before it is scheduled.",
+      hasFirstCommentField: true,
+      firstComment: "",
+      assets: [image("https://cdn.northwind.example/draft.jpg", 1080, 1920, null)],
+    }),
   ];
 }
 
@@ -194,13 +205,33 @@ export function demoLinkPreset(): Map<string, LinkStatus> {
     [LINEN, ok(LINEN)],
     ["https://cdn.northwind.example/dye.jpg", ok("https://cdn.northwind.example/dye.jpg")],
     ["https://cdn.northwind.example/hem.jpg", ok("https://cdn.northwind.example/hem.jpg")],
+    ["https://cdn.northwind.example/draft.jpg", ok("https://cdn.northwind.example/draft.jpg")],
   ]);
 }
 
-export async function buildDemoReport(now = new Date(), windowDays = 7): Promise<ScanReport> {
+export const DEMO_SUGGESTIONS = [
+  {
+    postId: "post_ig_comments",
+    altText: "Folded linen in a new walnut dye, stacked on a studio table.",
+    mismatch: "The caption promises a link in the comments, and the picture is only the cloth.",
+  },
+  {
+    postId: "post_ig_hem",
+    altText: "Close-up of a hem stitch on walnut-dyed linen.",
+    mismatch: null,
+  },
+  {
+    postId: "post_ig_draft",
+    altText: "Unfinished stack of walnut-dyed linen on the studio table.",
+    mismatch: "The caption is still a TODO, so it does not describe the cloth.",
+  },
+];
+
+export async function buildDemoReport(now = new Date(), windowDays = 7, includeDrafts = false): Promise<ScanReport> {
   const start = now.getTime() - 24 * 60 * 60 * 1000;
   const end = now.getTime() + windowDays * 24 * 60 * 60 * 1000;
   const posts = demoPosts(now).filter((post) => {
+    if ((post.status === "draft" || post.status === "sending") && !includeDrafts) return false;
     if (!post.dueAt) return true;
     const due = new Date(post.dueAt).getTime();
     return due >= start && due <= end;
@@ -222,8 +253,14 @@ export async function buildDemoReport(now = new Date(), windowDays = 7): Promise
     requestsUsed: 0,
     cached: false,
     skippedLinks: skipped,
+    includeDrafts,
+    suggestions: DEMO_SUGGESTIONS,
     notes: [
       "Demo mode replays a fixture queue. No Buffer API calls are made.",
+      includeDrafts
+        ? "Drafts are included. The unfinished Instagram draft is not scheduled yet."
+        : "Drafts are hidden. Turn on Include drafts to check a post before it is scheduled.",
+      "Alt-text suggestions in this demo are recorded examples. Nothing is sent to a model.",
       "The broken posts are invented: a dead shop link, a lookbook 404, an old blog 404, a signed S3 image, a paused Facebook queue, a caption that promises a first comment, and a LinkedIn post written in Unicode bold.",
     ],
   });

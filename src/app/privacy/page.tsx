@@ -21,9 +21,11 @@ export default function PrivacyPage() {
             <code>posts:read</code>, and <code>offline_access</code>. It does not request permission to create or edit posts.
           </p>
           <p style={{ marginTop: 12 }}>
-            After you approve access, the access token and refresh token are encrypted with AES-256-GCM and stored in an
-            httpOnly cookie on your browser. The server cannot read them from JavaScript. Refresh tokens rotate: each
-            refresh replaces the cookie with the new token Buffer returns. Signing out deletes the cookie.
+            After you approve access, the access token is encrypted with AES-256-GCM and stored in an httpOnly cookie.
+            A refresh token is stored the same way only when Buffer returns one. The app-client form does not offer
+            offline_access, so a sign-in often has no refresh token: the access token lasts about an hour, and PostGuard
+            then asks you to connect again instead of failing the page. When a refresh token is present it rotates, and
+            the cookie keeps only the newest one. Signing out deletes the cookie.
           </p>
           <p style={{ marginTop: 12 }}>
             Scan results are kept in memory on the server for about 10 minutes so a reload does not spend the shared

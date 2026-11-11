@@ -128,12 +128,49 @@ export type QuotaWindow = {
   windowSeconds: number | null;
 };
 
+export type Readiness = "ready" | "attention" | "fail";
+
+export type CropPreview = {
+  src: string | null;
+  width: number;
+  height: number;
+  label: string;
+  cropped: boolean;
+  top: number;
+  bottom: number;
+  left: number;
+  right: number;
+};
+
+export type PostCard = {
+  id: string;
+  channelId: string;
+  channelName: string;
+  service: string;
+  status: string;
+  dueAt: string | null;
+  excerpt: string;
+  readiness: Readiness;
+  fixUrl: string;
+  needsAlt: boolean;
+  preview: CropPreview | null;
+};
+
+export type AltSuggestion = {
+  postId: string;
+  altText: string;
+  mismatch: string | null;
+};
+
 export type ScanReport = {
   scannedAt: string;
   windowDays: number;
   mode: "live" | "demo";
+  includeDrafts: boolean;
   organization: { id: string; name: string };
   postsScanned: number;
+  riskHeadline: string;
+  cards: PostCard[];
   channels: Array<{
     id: string;
     name: string;
@@ -143,10 +180,13 @@ export type ScanReport = {
     isQueuePaused: boolean;
     postCount: number;
     findingCount: number;
+    score: number;
+    readiness: Readiness;
   }>;
   findings: Finding[];
   totals: Record<Severity, number>;
   headline: string;
+  suggestions: AltSuggestion[];
   quota: {
     label: string;
     windows: QuotaWindow[];

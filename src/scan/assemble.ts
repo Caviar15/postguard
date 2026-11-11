@@ -1,9 +1,13 @@
-import type { Channel, LinkStatus, Post, QuotaWindow, ScanReport, Severity } from "@/domain/types";
+import type { AltSuggestion, Channel, CropPreview, LinkStatus, Post, PostCard, QuotaWindow, ScanReport, Severity } from "@/domain/types";
 import { emptyTotals, headline } from "@/domain/headline";
+import { channelReadiness, channelScore, postReadiness, riskHeadline } from "@/domain/readiness";
 import { copyUrls, mediaUrls } from "@/domain/urls";
+import { bufferFixUrl } from "@/buffer/deep-link";
 import { quotaLabel } from "@/buffer/rate-limit";
 import { staticUrlRisk } from "@/links/risk";
 import { checkMany, type CheckOptions } from "@/links/checker";
+import { cropForPost } from "@/rules/crop";
+import { excerpt } from "@/rules/context";
 import { runRules } from "@/rules/engine";
 
 export function urlsToCheck(posts: Post[]): { copy: string[]; media: string[] } {
@@ -69,6 +73,8 @@ export function assembleReport(input: {
   cached: boolean;
   notes?: string[];
   skippedLinks?: number;
+  includeDrafts?: boolean;
+  suggestions?: AltSuggestion[];
 }): ScanReport {
   const findings = runRules({
     posts: input.posts,
@@ -84,25 +90,37 @@ export function assembleReport(input: {
     notes.push(`${input.skippedLinks} URLs were not checked, to keep this scan inside a short function timeout.`);
   }
 
+  const cards = buildCards(input.posts, input.channels, findings);
   return {
     scannedAt: input.now.toISOString(),
     windowDays: input.windowDays,
     mode: input.mode,
+    includeDrafts: input.includeDrafts ?? false,
     organization: input.organization,
     postsScanned: input.posts.length,
-    channels: input.channels.map((channel) => ({
-      id: channel.id,
-      name: channel.displayName || channel.name,
-      service: channel.service,
-      isDisconnected: channel.isDisconnected,
-      isLocked: channel.isLocked,
-      isQueuePaused: channel.isQueuePaused,
-      postCount: input.posts.filter((post) => post.channelId === channel.id).length,
-      findingCount: findings.filter((finding) => finding.channelId === channel.id).length,
-    })),
+    riskHeadline: riskHeadline(cards, input.now),
+    cards,
+    channels: input.channels.map((channel) => {
+      const channelFindings = findings.filter((finding) => finding.channelId === channel.id);
+      const readinesses = cards.filter((card) => card.channelId === channel.id).map((card) => card.readiness);
+      const score = channelScore(channelFindings);
+      return {
+        id: channel.id,
+        name: channel.displayName || channel.name,
+        service: channel.service,
+        isDisconnected: channel.isDisconnected,
+        isLocked: channel.isLocked,
+        isQueuePaused: channel.isQueuePaused,
+        postCount: input.posts.filter((post) => post.channelId === channel.id).length,
+        findingCount: channelFindings.length,
+        score,
+        readiness: channelReadiness(score, readinesses),
+      };
+    }),
     findings,
     totals,
     headline: headline(findings, input.windowDays),
+    suggestions: input.suggestions ?? [],
     quota: {
       label: input.mode === "demo" ? "Demo mode uses none of the shared Buffer quota." : quotaLabel(input.quotaWindows),
       windows: input.quotaWindows,
@@ -111,4 +129,41 @@ export function assembleReport(input: {
     cached: input.cached,
     notes,
   };
+}
+
+function buildCards(posts: Post[], channels: Channel[], findings: ScanReport["findings"]): PostCard[] {
+  const byId = new Map(channels.map((channel) => [channel.id, channel]));
+  return [...posts]
+    .sort((a, b) => (a.dueAt ?? "9999").localeCompare(b.dueAt ?? "9999"))
+    .map((post) => {
+      const channel = byId.get(post.channelId);
+      const frame = cropForPost(post, post.assets.findIndex((asset) => asset.type === "image" || asset.type === "video"));
+      const asset = post.assets.find((item) => item.type === "image" || item.type === "video");
+      const preview: CropPreview | null = frame && asset?.width && asset.height
+        ? {
+            src: asset.type === "image" ? asset.source : asset.thumbnail,
+            width: asset.width,
+            height: asset.height,
+            label: frame.label,
+            cropped: frame.cropped,
+            top: frame.top,
+            bottom: frame.bottom,
+            left: frame.left,
+            right: frame.right,
+          }
+        : null;
+      return {
+        id: post.id,
+        channelId: post.channelId,
+        channelName: channel?.displayName || channel?.name || post.channelId,
+        service: post.service,
+        status: post.status,
+        dueAt: post.dueAt,
+        excerpt: excerpt(post.text),
+        readiness: postReadiness(post, findings, channel),
+        fixUrl: bufferFixUrl(post.channelId, post.id),
+        needsAlt: post.assets.some((item) => item.type === "image" && !(item.altText ?? "").trim()),
+        preview,
+      };
+    });
 }
