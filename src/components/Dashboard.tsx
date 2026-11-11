@@ -6,6 +6,7 @@ import { READINESS_LABEL } from "@/domain/readiness";
 import { SEVERITY_LABEL, type AltSuggestion, type ScanReport, type Severity } from "@/domain/types";
 import { CropPreview } from "./CropPreview";
 import { Brand } from "./Brand";
+import { addCalendarDays, calendarDay, timelineZone } from "@/domain/timeline";
 import { formatDue, serviceLabel } from "./service";
 
 const SEVERITIES: Severity[] = ["blocker", "high", "medium", "low", "info"];
@@ -85,7 +86,8 @@ export function Dashboard({
     return report.cards.filter((card) => report.findings.some((finding) => finding.postId === card.id && finding.severity === filter));
   }, [filter, report.cards, report.findings]);
 
-  const days = timelineDays(report.scannedAt, Math.min(report.windowDays, 7));
+  const axis = timelineZone(report.cards.map((card) => card.timeZone));
+  const days = timelineDays(report.scannedAt, Math.min(report.windowDays, 7), axis.zone);
   const undated = report.cards.filter((card) => !card.dueAt);
 
   return (
@@ -132,7 +134,7 @@ export function Dashboard({
             <Link href={query(report.windowDays, !report.includeDrafts)} aria-current={report.includeDrafts ? "page" : undefined}>
               {report.includeDrafts ? "Drafts included" : "Include drafts"}
             </Link>
-            {report.mode === "live" ? <Link href={`${query(report.windowDays)}&refresh=1`}>Scan again</Link> : null}
+            <Link href={`${query(report.windowDays)}&refresh=1`}>Scan again</Link>
           </div>
           <button type="button" className="button small secondary" aria-pressed={suggest} onClick={() => setSuggest((value) => !value)}>
             Suggest alt text
@@ -159,9 +161,10 @@ export function Dashboard({
         </div>
         <section aria-labelledby="timeline-heading">
           <h2 id="timeline-heading">Upcoming</h2>
+          <p className="fine">Days in {axis.label}</p>
           <div className="timeline" data-testid="timeline">
             {days.map((day) => {
-              const posts = report.cards.filter((card) => card.dueAt?.slice(0, 10) === day);
+              const posts = report.cards.filter((card) => card.dueAt && calendarDay(card.dueAt, axis.zone) === day);
               return (
                 <div key={day} className="day">
                   <span className="day-label">{dayLabel(day)}</span>
@@ -300,15 +303,9 @@ function Suggestion({
   );
 }
 
-function timelineDays(scannedAt: string, count: number): string[] {
-  const start = scannedAt.slice(0, 10);
-  return Array.from({ length: count }, (_, index) => addUtcDays(start, index));
-}
-
-function addUtcDays(day: string, amount: number): string {
-  const date = new Date(`${day}T00:00:00.000Z`);
-  date.setUTCDate(date.getUTCDate() + amount);
-  return date.toISOString().slice(0, 10);
+function timelineDays(scannedAt: string, count: number, timeZone: string): string[] {
+  const start = calendarDay(scannedAt, timeZone);
+  return Array.from({ length: count }, (_, index) => addCalendarDays(start, index));
 }
 
 function dayLabel(day: string): string {

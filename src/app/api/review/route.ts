@@ -2,6 +2,7 @@ import { nextAuthStep } from "@/auth/flow";
 import { readSession } from "@/auth/session";
 import { reviewBudgetKey, reviewImage } from "@/ai/review";
 import { isHttpUrl } from "@/domain/urls";
+import { sessionHasImage } from "@/scan/cache";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 30;
@@ -17,8 +18,8 @@ export async function POST(request: Request) {
 
   const body = (await request.json().catch(() => null)) as { imageUrl?: unknown; caption?: unknown; service?: unknown } | null;
   const imageUrl = typeof body?.imageUrl === "string" ? body.imageUrl : "";
-  if (!isHttpUrl(imageUrl)) {
-    return Response.json({ ok: false, reason: "invalid", message: "That image URL cannot be reviewed." }, { status: 400 });
+  if (!isHttpUrl(imageUrl) || !sessionHasImage(session.refreshToken ?? session.accessToken, imageUrl)) {
+    return Response.json({ ok: false, reason: "invalid", message: "That image is not in the latest scan." }, { status: 400 });
   }
 
   const result = await reviewImage({

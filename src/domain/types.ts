@@ -60,7 +60,8 @@ export type Channel = {
   isDisconnected: boolean;
   isLocked: boolean;
   isQueuePaused: boolean;
-  timezone: string;
+  /** IANA zone from the channel. Null when the API omits it. */
+  timezone: string | null;
   /** Mastodon server limit, when the channel metadata includes it. */
   maxCharacters: number | null;
   /** Raw TwitterMetadata.subscriptionType. The API types this as an unstructured string. */
@@ -149,6 +150,7 @@ export type PostCard = {
   service: string;
   status: string;
   dueAt: string | null;
+  timeZone: string | null;
   excerpt: string;
   readiness: Readiness;
   fixUrl: string;

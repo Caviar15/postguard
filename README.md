@@ -128,7 +128,7 @@ Assumed, and written so a mismatch shows up as a failed scan rather than a silen
 
 ## Suggestions
 
-**Suggest alt text** is off until someone turns it on. Demo mode shows recorded examples and does not call a model. A live scan calls the Vercel AI Gateway with the AI SDK (`google/gemini-2.5-flash-lite`) using the deployment’s OIDC token. No `AI_GATEWAY_API_KEY` is required, and adding one would override OIDC, so leave it unset. The route caps a session at 6 images an hour, caches a suggestion for a day, and returns a friendly notice if the gateway is off or the call fails. Suggestions are labelled as suggestions and have a copy button. PostGuard never writes them back to Buffer.
+**Suggest alt text** is off until someone turns it on. Demo mode shows recorded examples and does not call a model. A live scan calls the Vercel AI Gateway with the AI SDK (`google/gemini-2.5-flash-lite`) using the deployment’s OIDC token. No `AI_GATEWAY_API_KEY` is required, and adding one would override OIDC, so leave it unset. The route caps a session at 6 images an hour and caches a suggestion for a day. That cap lives in memory on each server instance, so it is best-effort when more than one instance is running. The route returns a friendly notice if the gateway is off or the call fails, and it only accepts an image URL that is already in that session's cached scan. Suggestions are labelled as suggestions and have a copy button. PostGuard never writes them back to Buffer.
 
 If the button says the gateway is unavailable, enable AI Gateway on the Vercel project. That is a project setting, not an env var.
 

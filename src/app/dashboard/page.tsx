@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { redirect } from "next/navigation";
+import { redirect, unstable_rethrow } from "next/navigation";
 import { Brand } from "@/components/Brand";
 import { Dashboard } from "@/components/Dashboard";
 import { nextAuthStep } from "@/auth/flow";
@@ -42,17 +42,17 @@ export default async function DashboardPage({
     }
   }
 
+  let report;
   try {
-    const report = await scanLive({
+    report = await scanLive({
       accessToken: session.accessToken,
       windowDays: days,
       organizationId: params.org ?? null,
       includeDrafts,
     });
     writeCachedReport(key, report);
-    if (params.refresh === "1") redirect(nextPath);
-    return <Dashboard report={report} basePath="/dashboard" sessionNote={sessionNote(session.refreshToken)} />;
   } catch (error) {
+    unstable_rethrow(error);
     if (error instanceof BufferAuthError) {
       if (!session.refreshToken || params.retried === "1") return <ConnectPrompt expired />;
       const retryPath = `${nextPath}${nextPath.includes("?") ? "&" : "?"}retried=1`;
@@ -65,6 +65,9 @@ export default async function DashboardPage({
         : "The scan failed.";
     return <ScanError message={message} />;
   }
+
+  if (params.refresh === "1") redirect(nextPath);
+  return <Dashboard report={report} basePath="/dashboard" sessionNote={sessionNote(session.refreshToken)} />;
 }
 
 function dashboardPath(days: number, org: string | undefined, drafts: boolean): string {
@@ -91,7 +94,7 @@ function ConnectPrompt({ expired }: { expired: boolean }) {
           {expired
             ? "The access token lasted about an hour and there is no refresh token to renew it. Connect again to keep reading the queue. PostGuard still cannot edit or publish anything."
             : configured
-              ? "PostGuard asks for account:read and posts:read. It cannot edit posts. If Buffer also grants offline_access, the session renews itself. If not, you connect again after about an hour."
+              ? "PostGuard asks for account:read and posts:read. It cannot edit or publish posts."
               : "This deployment has no Buffer client id yet. Use the demo queue, or set the env vars in the README."}
         </p>
         <div className="cta-row">

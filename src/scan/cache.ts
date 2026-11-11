@@ -24,3 +24,14 @@ export function readCachedReport(key: string): ScanReport | null {
 export function writeCachedReport(key: string, report: ScanReport): void {
   store.set(key, { at: Date.now(), report: { ...report, cached: false } });
 }
+
+/** True when this session's unexpired scan cache contains the image URL exactly. */
+export function sessionHasImage(tokenMaterial: string, imageUrl: string, now = Date.now()): boolean {
+  const prefix = `${createHash("sha256").update(tokenMaterial).digest("hex").slice(0, 16)}:`;
+  for (const [key, entry] of store) {
+    if (!key.startsWith(prefix)) continue;
+    if (now - entry.at > TTL_MS) continue;
+    if (entry.report.cards.some((card) => card.preview?.src === imageUrl)) return true;
+  }
+  return false;
+}

@@ -159,6 +159,7 @@ function buildCards(posts: Post[], channels: Channel[], findings: ScanReport["fi
         service: post.service,
         status: post.status,
         dueAt: post.dueAt,
+        timeZone: channel?.timezone ?? null,
         excerpt: excerpt(post.text),
         readiness: postReadiness(post, findings, channel),
         fixUrl: bufferFixUrl(post.channelId, post.id),

@@ -4,7 +4,7 @@ import { oauthConfigured } from "@/config";
 
 function authMessage(code: string): string {
   if (code === "session_expired") {
-    return "Your Buffer session expired. Connect again to scan the queue. This is what happens after about an hour when Buffer does not return a refresh token.";
+    return "Your Buffer session expired. Connect again to scan the queue.";
   }
   if (code === "not_configured") return "Buffer sign-in is not configured in this environment. Demo mode does not need an account.";
   if (code === "access_denied") return "Buffer sign-in was cancelled. Nothing was changed.";

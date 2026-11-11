@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { staticUrlRisk } from "./risk";
 import { checkMany, checkUrl } from "./checker";
+import { isBlockedAddress } from "./ssrf";
+
+const publicLookup = async () => ["93.184.216.34"];
 
 function response(status: number, headers: Record<string, string> = {}, body = ""): Response {
   return new Response(body, { status, headers });
@@ -36,21 +39,21 @@ describe("link checker", () => {
       return response(200);
     };
 
-    const dead = await checkUrl("https://shop.example/missing", fetchImpl);
+    const dead = await checkUrl("https://shop.example/missing", fetchImpl, 5_000, publicLookup);
     expect(dead.outcome).toBe("dead");
     expect(dead.status).toBe(404);
 
-    const soft = await checkUrl("https://shop.example/gone", fetchImpl);
+    const soft = await checkUrl("https://shop.example/gone", fetchImpl, 5_000, publicLookup);
     expect(soft.outcome).toBe("soft-404");
 
-    const chain = await checkUrl("https://shop.example/chain", fetchImpl);
+    const chain = await checkUrl("https://shop.example/chain", fetchImpl, 5_000, publicLookup);
     expect(chain.outcome).toBe("redirect");
     expect(chain.hops).toBe(4);
 
-    const blocked = await checkUrl("https://shop.example/blocked", fetchImpl);
+    const blocked = await checkUrl("https://shop.example/blocked", fetchImpl, 5_000, publicLookup);
     expect(blocked.outcome).toBe("unverified");
 
-    const insecure = await checkUrl("http://insecure.example/a", fetchImpl);
+    const insecure = await checkUrl("http://insecure.example/a", fetchImpl, 5_000, publicLookup);
     expect(insecure.outcome).toBe("insecure");
   });
 
@@ -63,13 +66,13 @@ describe("link checker", () => {
           reject(error);
         });
       });
-    const timedOut = await checkUrl("https://slow.example/a", hanging, 20);
+    const timedOut = await checkUrl("https://slow.example/a", hanging, 20, publicLookup);
     expect(timedOut.outcome).toBe("unverified");
 
     const failing: typeof fetch = async () => {
       throw new TypeError("getaddrinfo ENOTFOUND");
     };
-    const dead = await checkUrl("https://no-such-host.example/a", failing);
+    const dead = await checkUrl("https://no-such-host.example/a", failing, 5_000, publicLookup);
     expect(dead.outcome).toBe("dead");
   });
 
@@ -85,11 +88,42 @@ describe("link checker", () => {
       cache,
       delayMs: 0,
       concurrency: 2,
+      lookup: publicLookup,
     });
     expect(first.size).toBe(3);
     expect(calls).toBe(3);
-    const second = await checkMany(["https://a.example/1"], { fetchImpl, cache, delayMs: 0 });
+    const second = await checkMany(["https://a.example/1"], { fetchImpl, cache, delayMs: 0, lookup: publicLookup });
     expect(second.get("https://a.example/1")?.outcome).toBe("ok");
     expect(calls).toBe(3);
+  });
+
+  it("refuses private, metadata, and non-default targets, including after a redirect", async () => {
+    expect(isBlockedAddress("127.0.0.1")).toBe(true);
+    expect(isBlockedAddress("10.1.2.3")).toBe(true);
+    expect(isBlockedAddress("169.254.169.254")).toBe(true);
+    expect(isBlockedAddress("100.64.0.1")).toBe(true);
+    expect(isBlockedAddress("192.168.1.1")).toBe(true);
+    expect(isBlockedAddress("::1")).toBe(true);
+    expect(isBlockedAddress("fd00::1")).toBe(true);
+    expect(isBlockedAddress("fe80::1")).toBe(true);
+    expect(isBlockedAddress("::ffff:127.0.0.1")).toBe(true);
+    expect(isBlockedAddress("1.1.1.1")).toBe(false);
+
+    const fetchImpl: typeof fetch = async (input) => {
+      const url = String(input);
+      if (url === "https://public.example/start") return response(302, { location: "http://127.0.0.1/secret" });
+      throw new Error(`fetched a blocked target: ${url}`);
+    };
+    const lookup = async (hostname: string) => (hostname === "public.example" ? ["1.1.1.1"] : ["127.0.0.1"]);
+    const redirected = await checkUrl("https://public.example/start", fetchImpl, 5_000, lookup);
+    expect(redirected.outcome).toBe("unverified");
+    expect(redirected.detail).toMatch(/private|loopback|link-local|metadata/i);
+
+    const metadata = await checkUrl("http://169.254.169.254/latest/meta-data", fetchImpl, 5_000, async () => ["169.254.169.254"]);
+    expect(metadata.outcome).toBe("unverified");
+
+    const oddPort = await checkUrl("https://public.example:8443/a", fetchImpl, 5_000, publicLookup);
+    expect(oddPort.outcome).toBe("unverified");
+    expect(oddPort.detail).toMatch(/port/i);
   });
 });

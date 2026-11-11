@@ -4,6 +4,7 @@ import { expect, test } from "@playwright/test";
 test("demo mode shows the queue health report", async ({ page }) => {
   await page.goto("/");
   await expect(page.getByRole("heading", { name: "Valid when queued. Broken at publish." })).toBeVisible();
+  await expect(page.getByText("Not affiliated with or endorsed by Buffer")).toBeVisible();
   await page.getByRole("link", { name: "Try the demo queue" }).click();
 
   await expect(page.getByRole("heading", { name: "Queue health" })).toBeVisible();
@@ -43,8 +44,19 @@ test("demo mode shows the queue health report", async ({ page }) => {
 test("privacy page states the read-only scopes", async ({ page }) => {
   await page.goto("/privacy");
   await expect(page.getByRole("heading", { name: "What PostGuard stores" })).toBeVisible();
-  await expect(page.getByText("account:read")).toBeVisible();
-  await expect(page.getByText("offline_access", { exact: true })).toBeVisible();
+  await expect(page.getByText("account:read", { exact: true })).toBeVisible();
+  await expect(page.getByText("posts:read", { exact: true })).toBeVisible();
+  await expect(page.getByText("offline_access")).toHaveCount(0);
+});
+
+test("scan again in demo mode stays on a working dashboard", async ({ page }) => {
+  await page.goto("/demo");
+  await page.getByRole("link", { name: "Scan again" }).click();
+  await expect(page.getByRole("heading", { name: "Queue health" })).toBeVisible();
+  await expect(page.getByTestId("summary")).toContainText("dead link");
+  await expect(page.getByText("The live queue could not be read.")).toHaveCount(0);
+  await expect(page.getByText("Scan stopped")).toHaveCount(0);
+  await expect(page).toHaveURL(/\/demo\?days=7$/);
 });
 
 for (const path of ["/", "/demo", "/privacy", "/testing"]) {
