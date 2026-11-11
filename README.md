@@ -1,5 +1,7 @@
 # PostGuard
 
+[![CI](https://github.com/Caviar15/postguard/actions/workflows/ci.yml/badge.svg)](https://github.com/Caviar15/postguard/actions/workflows/ci.yml)
+
 PostGuard is a pre-flight check for a Buffer queue. It signs in with Buffer, reads the scheduled posts, and flags the ones that were fine when you queued them and will be broken when they publish.
 
 > Next 7 days: 3 dead links, 1 duplicate, 2 missing alt text, 1 paused channel.
@@ -19,7 +21,7 @@ Open http://localhost:3000 and choose **Try the demo queue**. Demo mode replays 
 
 1. In Buffer, open [Settings → API](https://publish.buffer.com/settings/api) and create an app client.
 2. Choose a **confidential / private** client. PostGuard keeps the secret on the server.
-3. Permissions: `account:read`, `posts:read`, `offline_access`. Do not enable write scopes.
+3. Permissions: `account:read` and `posts:read`. Do not enable write scopes. The app form has no `offline_access` checkbox; PostGuard still asks for it, and if Buffer does not return a refresh token the session simply lasts one hour.
 4. Redirect URI, matched exactly:
    - Local: `http://localhost:3000/api/auth/callback`
    - Production: `https://YOUR_PROJECT.vercel.app/api/auth/callback`
@@ -41,7 +43,7 @@ Then `npm run dev`, and use **Connect Buffer**. The flow is OAuth 2.0 authorizat
 - Token: `POST https://auth.buffer.com/token`
 - API: `POST https://api.buffer.com` with `Authorization: Bearer`
 
-Access tokens last one hour. Refresh tokens are requested via `offline_access` and are single-use: every refresh stores the new refresh token and drops the old one. Reusing an old refresh token revokes the grant. Tokens sit in an AES-256-GCM httpOnly cookie, split if they do not fit in one cookie. Sign out deletes it. Users can also revoke the app from Buffer’s API settings.
+Access tokens last one hour. If the token response includes a refresh token, it is single-use: every refresh stores the new one and drops the old one. Reusing an old refresh token revokes the grant. If the response has no refresh token, PostGuard keeps the access token and, when it expires, shows a reconnect prompt instead of calling the refresh endpoint or crashing. Tokens sit in an AES-256-GCM httpOnly cookie. Sign out deletes it.
 
 ## Deploy
 
@@ -61,9 +63,11 @@ One scan, on demand:
 
 1. `account { organizations }`
 2. `channels` for that organization (disconnected, locked, paused, Mastodon `maxCharacters`, X `subscriptionType`)
-3. `posts` with `status: [scheduled, error, needs_approval]`, `dueAt` from 24 hours ago through the window, sorted by `dueAt`, page size 50, cursor in `after` / `pageInfo.endCursor`
-4. One page of posts with `dueAtPresence: absent`, for queue items that have no publish time
+3. `posts` with `status` of `scheduled`, `error`, and `needs_approval`, `dueAt` from 24 hours ago through the window, sorted by `dueAt`, page size 50, cursor in `after` / `pageInfo.endCursor`. **Include drafts** adds `draft` and `sending`, plus one page of `status: [draft]` with no date filter so an unscheduled draft is visible. `sent` is never requested.
+4. One page of posts with `dueAtPresence: absent`, using the same status list
 5. HEAD, then GET, for the URLs in the copy and on the media. Signed and private-host URLs are classified without a request.
+
+`PostStatus` in the published schema is `draft`, `error`, `needs_approval`, `scheduled`, `sending`, `sent`.
 
 Paging stops after 12 pages or when the 15-minute `RateLimit` window has 2 requests left. The meter reads `RateLimit` and `RateLimit-Policy` and matches windows by `w` (900, 86400, 2592000), not by the policy name.
 
@@ -122,15 +126,27 @@ Assumed, and written so a mismatch shows up as a failed scan rather than a silen
 - `configuration` may or may not work on a Free plan. It is Experimental, so it is not called.
 - Link checks can be blocked by a bot wall. 401, 403, and 429 are “could not verify”, not “dead”.
 
+## Suggestions
+
+**Suggest alt text** is off until someone turns it on. Demo mode shows recorded examples and does not call a model. A live scan calls the Vercel AI Gateway with the AI SDK (`google/gemini-2.5-flash-lite`) using the deployment’s OIDC token. No `AI_GATEWAY_API_KEY` is required, and adding one would override OIDC, so leave it unset. The route caps a session at 6 images an hour and caches a suggestion for a day. That cap lives in memory on each server instance, so it is best-effort when more than one instance is running. The route returns a friendly notice if the gateway is off or the call fails, and it only accepts an image URL that is already in that session's cached scan. Suggestions are labelled as suggestions and have a copy button. PostGuard never writes them back to Buffer.
+
+If the button says the gateway is unavailable, enable AI Gateway on the Vercel project. That is a project setting, not an env var.
+
 ## Tests
 
 ```bash
+npm run lint
 npm test          # unit tests, Vitest
 npm run typecheck
-npm run test:e2e  # Playwright, demo dashboard. Builds first in CI.
+npm run test:e2e  # Playwright plus axe on the demo, home, privacy, and testing pages
 ```
 
-CI (`.github/workflows/ci.yml`) runs typecheck, unit tests, a production build, and the Playwright demo. The demo test checks the headline counts, the Buffer link, the quota note, and the severity filter.
+CI (`.github/workflows/ci.yml`) runs lint, typecheck, unit tests, a production build, and the browser pass. The page [How PostGuard is tested](src/app/testing/page.tsx) is the same account, written for a reader.
+
+## Built during the contest window
+
+- 10 Nov 2026: MVP. OAuth with PKCE, scheduled-post scan, rule modules, demo queue, rate-limit meter.
+- 11 Nov 2026: Drafts as an opt-in (`draft` and `sending`, `sent` stays out). Crop preview on each image. Per-channel readiness and a 7-day timeline. Advisory alt-text suggestions. A session with no refresh token expires into a reconnect prompt. Lint and axe in CI.
 
 ## Project map
 
@@ -141,5 +157,6 @@ src/rules       One module per check. Pure functions.
 src/links       HEAD/GET checker and signed-URL patterns
 src/scan        Live scan and the 10-minute cache
 src/demo        Northwind fixture
-src/app         Landing, demo, dashboard, privacy, OAuth routes
+src/ai          Opt-in alt-text suggestions and the hourly cap
+src/app         Landing, demo, dashboard, privacy, testing, OAuth routes
 ```

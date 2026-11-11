@@ -49,8 +49,8 @@ export async function readSession(): Promise<Session | null> {
     sealed += part;
   }
   const session = open<Session>(sealed, sessionSecret);
-  if (!session?.accessToken || !session.refreshToken || typeof session.expiresAt !== "number") return null;
-  return session;
+  if (!session?.accessToken || typeof session.expiresAt !== "number") return null;
+  return { ...session, refreshToken: session.refreshToken ?? null };
 }
 
 export async function clearSession(): Promise<void> {

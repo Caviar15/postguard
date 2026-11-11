@@ -144,7 +144,7 @@ export function normalizeChannel(node: unknown): Channel | null {
     isDisconnected: asBoolean(node.isDisconnected),
     isLocked: asBoolean(node.isLocked),
     isQueuePaused: asBoolean(node.isQueuePaused),
-    timezone: asString(node.timezone) ?? "UTC",
+    timezone: asString(node.timezone),
     maxCharacters: asNumber(metadata.maxCharacters),
     twitterSubscription: asString(metadata.subscriptionType),
   };

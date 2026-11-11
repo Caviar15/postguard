@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { nextAuthStep } from "./flow";
 import { buildAuthorizeUrl, readTokenSet, tokenRequestBody } from "./oauth";
 import { codeChallenge } from "./pkce";
 import { chunk, open, seal } from "./seal";
@@ -40,6 +41,21 @@ describe("authorize URL", () => {
 
     const rotated = readTokenSet({ access_token: "a", refresh_token: "rotated", expires_in: 3600 }, 0, "old");
     expect(rotated.refreshToken).toBe("rotated");
+  });
+
+  it("keeps a session when Buffer returns no refresh token", () => {
+    const tokens = readTokenSet({ access_token: "access-only", expires_in: 3600, scope: "account:read posts:read" }, 5_000);
+    expect(tokens.refreshToken).toBeNull();
+    expect(tokens.expiresAt).toBe(5_000 + 3_600_000);
+  });
+});
+
+describe("expired access token", () => {
+  it("asks for a reconnect instead of throwing when there is nothing to refresh", () => {
+    const now = 1_700_000_000_000;
+    expect(nextAuthStep({ refreshToken: null, expiresAt: now - 1_000 }, now)).toBe("reconnect");
+    expect(nextAuthStep({ refreshToken: "refresh", expiresAt: now - 1_000 }, now)).toBe("refresh");
+    expect(nextAuthStep({ refreshToken: null, expiresAt: now + 3_600_000 }, now)).toBe("ok");
   });
 });
 

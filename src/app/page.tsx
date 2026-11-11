@@ -2,6 +2,16 @@ import Link from "next/link";
 import { Brand } from "@/components/Brand";
 import { oauthConfigured } from "@/config";
 
+function authMessage(code: string): string {
+  if (code === "session_expired") {
+    return "Your Buffer session expired. Connect again to scan the queue.";
+  }
+  if (code === "not_configured") return "Buffer sign-in is not configured in this environment. Demo mode does not need an account.";
+  if (code === "access_denied") return "Buffer sign-in was cancelled. Nothing was changed.";
+  if (code === "state_mismatch") return "The sign-in attempt did not match the one this browser started. Connect again.";
+  return `Buffer sign-in did not finish (${code.replaceAll("_", " ").slice(0, 180)}). Demo mode does not need an account.`;
+}
+
 const CHECKS = [
   ["Dead and expiring links", "A URL that answered when you queued the post, and will not when Buffer publishes it."],
   ["Media Buffer cannot fetch", "Google Drive, Dropbox, and signed S3 or Cloudinary URLs fail at publish time."],
@@ -29,9 +39,7 @@ export default async function HomePage({
       </header>
       <main id="main" className="wrap">
         {params.auth_error ? (
-          <p className="banner" role="alert">
-            Buffer sign-in did not finish: {params.auth_error.replaceAll("_", " ")}. Demo mode does not need an account.
-          </p>
+          <p className="banner" role="alert">{authMessage(params.auth_error)}</p>
         ) : null}
         <section className="hero">
           <p className="kicker">Buffer queue, pre-flight</p>
@@ -46,7 +54,7 @@ export default async function HomePage({
           </div>
           <p className="fine">
             {configured
-              ? "OAuth is configured. Connecting uses the read scopes account:read, posts:read, and offline_access."
+              ? "Connecting uses the read scopes account:read and posts:read. PostGuard never publishes."
               : "OAuth is not configured in this environment. The demo queue is the full product with recorded posts, and it makes no Buffer API calls."}
           </p>
         </section>
@@ -78,7 +86,11 @@ export default async function HomePage({
       </main>
       <footer className="wrap site">
         <span>Built for Buffer Commit. Read-only by default.</span>
-        <a href="https://developers.buffer.com">Buffer API docs</a>
+        <span>
+          <Link href="/testing">How it’s tested</Link>
+          {" · "}
+          <a href="https://developers.buffer.com">Buffer API docs</a>
+        </span>
       </footer>
     </>
   );

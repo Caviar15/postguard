@@ -217,6 +217,7 @@ export const POSTS_QUERY = /* GraphQL */ `
     $first: Int!
     $start: DateTime!
     $end: DateTime!
+    $statuses: [PostStatus!]!
   ) {
     posts(
       first: $first
@@ -224,7 +225,7 @@ export const POSTS_QUERY = /* GraphQL */ `
       input: {
         organizationId: $organizationId
         sort: [{ field: dueAt, direction: asc }]
-        filter: { status: [scheduled, error, needs_approval], dueAt: { start: $start, end: $end } }
+        filter: { status: $statuses, dueAt: { start: $start, end: $end } }
       }
     ) {
       edges {
@@ -241,12 +242,36 @@ export const POSTS_QUERY = /* GraphQL */ `
 `;
 
 export const UNDATED_POSTS_QUERY = /* GraphQL */ `
-  query PostGuardUndatedPosts($organizationId: OrganizationId!, $first: Int!) {
+  query PostGuardUndatedPosts($organizationId: OrganizationId!, $first: Int!, $statuses: [PostStatus!]!) {
     posts(
       first: $first
       input: {
         organizationId: $organizationId
-        filter: { status: [scheduled, needs_approval], dueAtPresence: absent }
+        filter: { status: $statuses, dueAtPresence: absent }
+      }
+    ) {
+      edges {
+        node {
+          ${POST_FIELDS}
+        }
+      }
+      pageInfo {
+        hasNextPage
+        endCursor
+      }
+    }
+  }
+`;
+
+/** Drafts can sit outside the date window, so they are a separate page when the reader opts in. */
+export const DRAFTS_QUERY = /* GraphQL */ `
+  query PostGuardDrafts($organizationId: OrganizationId!, $first: Int!) {
+    posts(
+      first: $first
+      input: {
+        organizationId: $organizationId
+        sort: [{ field: createdAt, direction: desc }]
+        filter: { status: [draft] }
       }
     ) {
       edges {

@@ -9,6 +9,12 @@ describe("demo report", () => {
     expect(report.mode).toBe("demo");
     expect(report.requestsUsed).toBe(0);
     expect(report.headline).toBe("Next 7 days: 3 dead links, 1 duplicate, 2 missing alt text, 1 paused channel, 7 other risks.");
+    expect(report.riskHeadline).toBe("A risky post is already overdue.");
+    expect(report.includeDrafts).toBe(false);
+    expect(report.cards.some((card) => card.preview?.cropped)).toBe(true);
+    const withDrafts = await buildDemoReport(new Date("2026-11-10T12:00:00.000Z"), 7, true);
+    expect(withDrafts.cards.some((card) => card.status === "draft")).toBe(true);
+    expect(withDrafts.findings.some((finding) => finding.postId === "post_ig_draft")).toBe(true);
     expect(report.findings.every((finding) => finding.fixUrl.startsWith("https://publish.buffer.com/channels/"))).toBe(true);
     expect(headline(report.findings, 7)).toBe(report.headline);
   });

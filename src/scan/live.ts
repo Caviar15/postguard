@@ -2,8 +2,9 @@ import type { Post, ScanReport } from "@/domain/types";
 import { BufferClient } from "@/buffer/client";
 import { readChannels, readOrganizations, readPosts, type Organization } from "@/buffer/normalize";
 import { collectPages } from "@/buffer/paginate";
-import { ACCOUNT_QUERY, CHANNELS_QUERY, POSTS_QUERY, UNDATED_POSTS_QUERY } from "@/buffer/queries";
+import { ACCOUNT_QUERY, CHANNELS_QUERY, DRAFTS_QUERY, POSTS_QUERY, UNDATED_POSTS_QUERY } from "@/buffer/queries";
 import { shouldStopForQuota } from "@/buffer/rate-limit";
+import { scanStatuses } from "@/buffer/statuses";
 import { assembleReport, resolveLinks } from "./assemble";
 
 const PAGE_SIZE = 50;
@@ -14,15 +15,21 @@ export async function scanLive(input: {
   accessToken: string;
   windowDays: number;
   organizationId?: string | null;
+  includeDrafts?: boolean;
   fetchImpl?: typeof fetch;
   now?: Date;
 }): Promise<ScanReport> {
   const now = input.now ?? new Date();
+  const includeDrafts = input.includeDrafts ?? false;
+  const statuses = scanStatuses(includeDrafts);
   const client = new BufferClient(input.accessToken, input.fetchImpl);
   const notes: string[] = [
     "Character limits are the hard-coded table from Buffer's character-limits guide. The Experimental configuration query is not called.",
     "Aspect-ratio findings are best-effort. Width or height of 0 is ignored.",
   ];
+  if (includeDrafts) {
+    notes.push("Drafts are included, including ones with no publish time. Sent posts stay out. This is still read-only.");
+  }
 
   const accountData = await client.query<unknown>(ACCOUNT_QUERY);
   const account = readOrganizations(accountData);
@@ -48,6 +55,7 @@ export async function scanLive(input: {
         first: PAGE_SIZE,
         start,
         end,
+        statuses,
         ...(after ? { after } : {}),
       });
       const page = readPosts(data);
@@ -70,6 +78,7 @@ export async function scanLive(input: {
       const data = await client.query<unknown>(UNDATED_POSTS_QUERY, {
         organizationId: organization.id,
         first: PAGE_SIZE,
+        statuses,
       });
       const page = readPosts(data);
       undated = page.posts;
@@ -86,8 +95,25 @@ export async function scanLive(input: {
   }
   if (stoppedForQuota) notes.push("Stopped early because the Buffer rate-limit window is nearly empty.");
 
+  let drafts: Post[] = [];
+  if (includeDrafts && !stoppedForQuota && !shouldStopForQuota(client.quota)) {
+    try {
+      const data = await client.query<unknown>(DRAFTS_QUERY, {
+        organizationId: organization.id,
+        first: PAGE_SIZE,
+      });
+      const page = readPosts(data);
+      drafts = page.posts;
+      if (page.hasNextPage) {
+        notes.push("More than 50 drafts are in this organization. The newest page was checked.");
+      }
+    } catch {
+      notes.push("Drafts could not be loaded. Scheduled posts were still checked.");
+    }
+  }
+
   const byId = new Map<string, Post>();
-  for (const post of [...paged.items, ...undated]) byId.set(post.id, post);
+  for (const post of [...paged.items, ...undated, ...drafts]) byId.set(post.id, post);
   const posts = [...byId.values()];
 
   const links = await resolveSafely(posts, notes);
@@ -105,6 +131,7 @@ export async function scanLive(input: {
     cached: false,
     notes,
     skippedLinks: links.skipped,
+    includeDrafts,
   });
 }
 

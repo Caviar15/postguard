@@ -1,5 +1,6 @@
 import type { LinkStatus } from "@/domain/types";
 import { isHttpUrl } from "@/domain/urls";
+import { assertPublicHttpUrl, UnsafeUrlError, type LookupFn, defaultLookup } from "./ssrf";
 
 export type CheckOptions = {
   fetchImpl?: typeof fetch;
@@ -8,6 +9,7 @@ export type CheckOptions = {
   concurrency?: number;
   ttlMs?: number;
   cache?: Map<string, { at: number; status: LinkStatus }>;
+  lookup?: LookupFn;
 };
 
 const globalCache = new Map<string, { at: number; status: LinkStatus }>();
@@ -82,7 +84,12 @@ function classify(original: string, current: string, status: number, hops: numbe
   return result(original, "ok", status, hops, current, `HTTP ${status}.`);
 }
 
-export async function checkUrl(url: string, fetchImpl: typeof fetch = fetch, timeoutMs = 5_000): Promise<LinkStatus> {
+export async function checkUrl(
+  url: string,
+  fetchImpl: typeof fetch = fetch,
+  timeoutMs = 5_000,
+  lookupImpl: LookupFn = defaultLookup,
+): Promise<LinkStatus> {
   if (!isHttpUrl(url)) {
     return result(url, "dead", null, 0, null, "Not an http(s) URL.");
   }
@@ -94,6 +101,14 @@ export async function checkUrl(url: string, fetchImpl: typeof fetch = fetch, tim
 
   try {
     for (;;) {
+      try {
+        await assertPublicHttpUrl(current, lookupImpl);
+      } catch (error) {
+        if (error instanceof UnsafeUrlError) {
+          return result(url, "unverified", null, hops, current, error.message);
+        }
+        throw error;
+      }
       const response = await fetchOnce(fetchImpl, current, method, timeoutMs);
       if (response.status >= 300 && response.status < 400) {
         const location = response.headers.get("location");
@@ -169,7 +184,7 @@ export async function checkMany(urls: string[], options: CheckOptions = {}): Pro
       for (let i = 0; i < list.length; i += 1) {
         if (i > 0 && delayMs > 0) await sleep(delayMs);
         const url = list[i] ?? "";
-        const status = await checkUrl(url, fetchImpl, options.timeoutMs ?? 5_000);
+        const status = await checkUrl(url, fetchImpl, options.timeoutMs ?? 5_000, options.lookup ?? defaultLookup);
         cache.set(url, { at: Date.now(), status });
         resultMap.set(url, status);
       }
