@@ -1,3 +1,4 @@
+import { extractUrls } from "@/domain/urls";
 import type { Finding, Post } from "@/domain/types";
 import type { RuleContext } from "./context";
 import { makeFinding } from "./context";
@@ -29,6 +30,13 @@ function jaccard(left: Set<string>, right: Set<string>): number {
   for (const item of left) if (right.has(item)) intersection += 1;
   const union = left.size + right.size - intersection;
   return union === 0 ? 0 : intersection / union;
+}
+
+/** True when both posts carry links and share none: "New episode! <ep 41>" and "New episode! <ep 42>" are different posts. */
+function linksDiffer(left: Post, right: Post): boolean {
+  const a = new Set(extractUrls(left.text));
+  const b = extractUrls(right.text);
+  return a.size > 0 && b.length > 0 && !b.some((url) => a.has(url));
 }
 
 function hoursApart(left: string | null, right: string | null): number | null {
@@ -65,9 +73,10 @@ export function duplicates(ctx: RuleContext): Finding[] {
       const inWindow = hours === null ? true : sameChannel ? hours <= 24 : hours <= 1;
       if (!inWindow) continue;
 
-      const exact = a.normalized.length >= 20 && a.normalized === b.normalized;
+      const differentLinks = linksDiffer(a.post, b.post);
+      const exact = !differentLinks && a.normalized.length >= 20 && a.normalized === b.normalized;
       const near =
-        !exact && a.tokens.length >= 8 && b.tokens.length >= 8 && jaccard(a.shingles, b.shingles) >= 0.9;
+        !exact && !differentLinks && a.tokens.length >= 8 && b.tokens.length >= 8 && jaccard(a.shingles, b.shingles) >= 0.9;
       const media = sharedMedia(a.post, b.post);
       if (!exact && !near && !media) continue;
 

@@ -1,3 +1,4 @@
+import { urlPattern } from "@/domain/urls";
 import type { Finding } from "@/domain/types";
 import type { RuleContext } from "./context";
 import { makeFinding } from "./context";
@@ -5,7 +6,9 @@ import { makeFinding } from "./context";
 export function hashtags(ctx: RuleContext): Finding[] {
   const findings: Finding[] = [];
   for (const post of ctx.posts) {
-    const tags = post.text.match(/#[\p{L}\p{N}_]+/gu) ?? [];
+    // A "#section" inside a URL is a fragment, not a hashtag.
+    const prose = post.text.replace(urlPattern(), " ");
+    const tags = prose.match(/(?<![\p{L}\p{N}_&])#[\p{L}\p{N}_]+/gu) ?? [];
     if (post.service === "instagram" && tags.length > 30) {
       findings.push(
         makeFinding(ctx, {
@@ -20,7 +23,8 @@ export function hashtags(ctx: RuleContext): Finding[] {
         }),
       );
     }
-    if (/#[ \t]/.test(post.text) || /#$/.test(post.text.trim())) {
+    // A lone "#" that stands on its own. "C#" and "F#" have a letter in front of the sign.
+    if (/(^|\s)#(\s|$)/.test(prose)) {
       findings.push(
         makeFinding(ctx, {
           ruleId: "hashtags",

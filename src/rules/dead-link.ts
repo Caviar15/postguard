@@ -1,4 +1,4 @@
-import { copyUrls } from "@/domain/urls";
+import { copyUrls, extractUrls } from "@/domain/urls";
 import type { Finding, LinkOutcome, Severity } from "@/domain/types";
 import type { RuleContext } from "./context";
 import { makeFinding } from "./context";
@@ -26,7 +26,13 @@ const TITLE: Partial<Record<LinkOutcome, string>> = {
 export function deadLinks(ctx: RuleContext): Finding[] {
   const findings: Finding[] = [];
   for (const post of ctx.posts) {
+    // A URL that only appears in the first comment is reported by the first-comment rule. Reporting it here as well counts one problem twice.
+    const commentOnly = new Set(post.hasFirstCommentField ? extractUrls(post.firstComment) : []);
+    for (const url of extractUrls(post.text)) commentOnly.delete(url);
+    for (const item of post.thread) for (const url of extractUrls(item.text)) commentOnly.delete(url);
+    for (const url of post.links) commentOnly.delete(url);
     for (const url of copyUrls(post)) {
+      if (commentOnly.has(url)) continue;
       const status = ctx.linkResults.get(url);
       if (!status || status.outcome === "ok") continue;
       const severity = SEVERITY[status.outcome];
