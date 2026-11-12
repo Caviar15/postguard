@@ -12,7 +12,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body>
         <a className="skip" href="#main">Skip to content</a>
         {children}
-        <p className="wrap site-note">Not affiliated with or endorsed by Buffer</p>
+        <aside className="wrap site-note" aria-label="Disclaimer">Not affiliated with or endorsed by Buffer</aside>
       </body>
     </html>
   );
