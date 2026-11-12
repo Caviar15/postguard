@@ -34,19 +34,40 @@ export class BufferClient {
     private readonly token: string,
     private readonly fetchImpl: typeof fetch = fetch,
     private readonly endpoint = "https://api.buffer.com",
+    private readonly timeoutMs = 15_000,
   ) {}
 
   async query<T>(query: string, variables?: Record<string, unknown>): Promise<T> {
     this.requests += 1;
-    const response = await this.fetchImpl(this.endpoint, {
-      method: "POST",
-      headers: {
-        authorization: `Bearer ${this.token}`,
-        "content-type": "application/json",
-        accept: "application/json",
-      },
-      body: JSON.stringify({ query, variables }),
+    const controller = new AbortController();
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const timedOut = new Promise<never>((_resolve, reject) => {
+      timer = setTimeout(() => {
+        controller.abort();
+        reject(new BufferApiError(`Buffer did not answer within ${Math.round(this.timeoutMs / 1000)} seconds.`));
+      }, this.timeoutMs);
     });
+    let response: Response;
+    try {
+      response = await Promise.race([
+        this.fetchImpl(this.endpoint, {
+          method: "POST",
+          headers: {
+            authorization: `Bearer ${this.token}`,
+            "content-type": "application/json",
+            accept: "application/json",
+          },
+          body: JSON.stringify({ query, variables }),
+          signal: controller.signal,
+        }),
+        timedOut,
+      ]);
+    } catch (error) {
+      if (error instanceof BufferApiError) throw error;
+      throw new BufferApiError("Could not reach Buffer. Try again in a moment.");
+    } finally {
+      clearTimeout(timer);
+    }
 
     this.quota = parseRateLimit(response.headers.get("ratelimit"), response.headers.get("ratelimit-policy"));
     const body = (await response.json().catch(() => null)) as { data?: T; errors?: GraphQLError[] } | null;

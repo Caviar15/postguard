@@ -28,6 +28,7 @@ export function redirectUriFor(request: Request, config: AppConfig = getConfig()
 }
 
 export function clampDays(value: unknown, fallback = 7): number {
+  if (typeof value === "string" && value.trim() === "") return fallback;
   const parsed = typeof value === "string" ? Number(value) : typeof value === "number" ? value : fallback;
   if (!Number.isFinite(parsed)) return fallback;
   return Math.min(30, Math.max(1, Math.round(parsed)));
