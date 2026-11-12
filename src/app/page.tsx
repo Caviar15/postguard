@@ -42,8 +42,8 @@ export default async function HomePage({
         </div>
         <p className="proof">
           {configured
-            ? "Read-only · 2 scopes · live Buffer API"
-            : "Read-only · 2 scopes · demo uses sample data"}
+            ? "Read-only · 2 data scopes · live Buffer API"
+            : "Read-only · 2 data scopes · demo uses sample data"}
         </p>
       </header>
       <main id="main" className="wrap">
@@ -55,7 +55,7 @@ export default async function HomePage({
           <h1>Valid when queued. Broken at publish.</h1>
           <p className="lede">
             PostGuard signs in with Buffer, reads the next week of scheduled posts, and flags the ones that will fail,
-            look broken, or never go out. It is read-only. Each finding links back to the post in Buffer.
+            look broken, or never go out. It is read-only. Each finding links to the channel in Buffer.
           </p>
           <div className="cta-row">
             <Link className="button" href="/demo">Try the demo queue</Link>
@@ -64,7 +64,7 @@ export default async function HomePage({
           </div>
           <p className="fine">
             {configured
-              ? "Connecting uses the read scopes account:read and posts:read. PostGuard never publishes."
+              ? "Connecting asks for the data scopes account:read and posts:read, and for offline_access. Buffer may not grant a refresh token. PostGuard never publishes."
               : "OAuth is not configured in this environment. The demo queue is the full product with recorded posts, and it makes no Buffer API calls."}
           </p>
         </section>
@@ -80,9 +80,10 @@ export default async function HomePage({
           <article className="card">
             <h2>Shared quota, treated as scarce</h2>
             <p>
-              Buffer limits an app client across every user who connects it. A scan is one account query, one channel
-              query, and cursor pages of posts — not a request per post. Results stay cached for 10 minutes, the meter
-              shows what the last response had left, and paging stops when the 15-minute window is nearly empty.
+              Buffer limits an app client across every user who connects it. A scan is at least four requests: the
+              account, the channels, one page of posts, and one page of posts with no publish time. Including drafts
+              adds a fifth. It is not a request per post. Results stay cached for 10 minutes, the meter shows what the
+              last response had left, and paging stops when the 15-minute window is nearly empty.
             </p>
           </article>
           <article className="card">
@@ -95,7 +96,7 @@ export default async function HomePage({
         </section>
       </main>
       <footer className="wrap site">
-        <span>Built for Buffer Commit. Read-only by default.</span>
+        <span>Built for Buffer Commit. Read-only.</span>
         <span>
           <Link href="/testing">How it’s tested</Link>
           {" · "}

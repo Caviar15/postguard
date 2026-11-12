@@ -17,8 +17,9 @@ export default function PrivacyPage() {
         <h1>What PostGuard stores</h1>
         <div className="card">
           <p>
-            PostGuard is a read-only check of a Buffer queue. The OAuth request asks for <code>account:read</code> and{" "}
-            <code>posts:read</code>. It does not request permission to create or edit posts.
+            PostGuard is a read-only check of a Buffer queue. The OAuth request asks for the data scopes{" "}
+            <code>account:read</code> and <code>posts:read</code>, and to keep the session when Buffer allows it. It does
+            not request permission to create or edit posts.
           </p>
           <p style={{ marginTop: 12 }}>
             After you approve access, the access token is encrypted with AES-256-GCM and stored in an httpOnly cookie.

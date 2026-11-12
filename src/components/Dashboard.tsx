@@ -115,8 +115,8 @@ export function Dashboard({
         </div>
         <p className="proof">
           {report.mode === "demo"
-            ? "Read-only · 2 scopes · sample data, not a live queue"
-            : "Read-only · 2 scopes · live Buffer API"}
+            ? "Read-only · 2 data scopes · sample data, not a live queue"
+            : "Read-only · 2 data scopes · live Buffer API"}
         </p>
       </header>
       <main id="main" className="wrap">
