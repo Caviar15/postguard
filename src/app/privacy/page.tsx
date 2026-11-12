@@ -30,6 +30,11 @@ export default function PrivacyPage() {
             call Buffer.
           </p>
           <p style={{ marginTop: 12 }}>
+            If you press <em>Suggest alt text</em>, the URL of that post&rsquo;s image and its caption are sent to a vision
+            model through the Vercel AI Gateway to write a suggestion. Nothing is sent until you press the button, the
+            demo never calls a model, and results are kept in server memory for up to 24 hours.
+          </p>
+          <p style={{ marginTop: 12 }}>
             To disconnect PostGuard, sign out here and revoke the app from Buffer under Settings → API. That invalidates
             the tokens even if a cookie is left behind.
           </p>

@@ -97,7 +97,7 @@ export function Dashboard({
         <div className="top-actions">
           <span className="pill">{report.mode === "demo" ? "Demo queue" : report.organization.name}</span>
           {report.mode === "demo" ? (
-            <Link className="button secondary small" href="/api/auth/start">Connect Buffer</Link>
+            <a className="button secondary small" href="/api/auth/start">Connect Buffer</a>
           ) : (
             <form action="/api/auth/logout" method="post">
               <button className="button secondary small" type="submit">Sign out</button>
@@ -150,7 +150,7 @@ export function Dashboard({
             <div key={channel.id} className={`channel-chip readiness-${channel.readiness}`}>
               <strong>{channel.name}</strong>
               <span>
-                {serviceLabel(channel.service)} · {channel.postCount} posts · score {channel.score}
+                {serviceLabel(channel.service)} · {channel.postCount} {channel.postCount === 1 ? "post" : "posts"} · score {channel.score}
               </span>
               <span className={`readiness readiness-${channel.readiness}`}>{READINESS_LABEL[channel.readiness]}</span>
               {channel.isQueuePaused ? <span className="flag">Paused</span> : null}
@@ -241,6 +241,7 @@ export function Dashboard({
                     <Suggestion
                       recorded={recorded}
                       live={live}
+                      hasImage={Boolean(card.preview?.src)}
                       demo={report.mode === "demo"}
                     />
                   ) : null}
@@ -274,10 +275,12 @@ export function Dashboard({
 function Suggestion({
   recorded,
   live,
+  hasImage,
   demo,
 }: {
   recorded: AltSuggestion | undefined;
   live: LiveSuggestion | undefined;
+  hasImage: boolean;
   demo: boolean;
 }) {
   const altText = recorded?.altText ?? (live?.state === "ready" ? live.altText : null);
@@ -296,8 +299,11 @@ function Suggestion({
         </>
       ) : notice ? (
         <p>{notice}</p>
+      ) : !recorded && !hasImage && !demo ? (
+        // No request is ever sent for a post whose image has no usable preview, so do not promise one.
+        <p>Buffer did not return a preview image for this post, so there is nothing to describe.</p>
       ) : (
-        <p>{demo ? "No recorded suggestion for this image." : "Asking the model…"}</p>
+        <p role="status">{demo ? "No recorded suggestion for this image." : "Asking the model…"}</p>
       )}
     </div>
   );

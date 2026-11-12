@@ -12,7 +12,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body>
         <a className="skip" href="#main">Skip to content</a>
         {children}
-        <footer className="wrap site">Not affiliated with or endorsed by Buffer</footer>
+        <p className="wrap site-note">Not affiliated with or endorsed by Buffer</p>
       </body>
     </html>
   );

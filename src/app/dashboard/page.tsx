@@ -98,7 +98,7 @@ function ConnectPrompt({ expired }: { expired: boolean }) {
               : "This deployment has no Buffer client id yet. Use the demo queue, or set the env vars in the README."}
         </p>
         <div className="cta-row">
-          <Link className="button" href="/api/auth/start">Connect Buffer</Link>
+          <a className="button" href="/api/auth/start">Connect Buffer</a>
           <Link className="button secondary" href="/demo">Open the demo</Link>
         </div>
       </main>
