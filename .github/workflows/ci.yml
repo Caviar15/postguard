@@ -25,3 +25,7 @@ jobs:
       - run: npm run test:e2e
         env:
           CI: true
+      # Signed-in dashboard against a mocked Buffer API. Production probes are manual only.
+      - run: npm run test:e2e:signed-in
+        env:
+          CI: true

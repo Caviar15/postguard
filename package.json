@@ -10,7 +10,9 @@
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test",
+    "test:e2e:signed-in": "bash e2e-local/run-signed-in.sh",
+    "test:e2e:prod": "playwright test -c e2e-prod/playwright.prod.config.ts"
   },
   "engines": {
     "node": ">=20"

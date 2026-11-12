@@ -13,3 +13,4 @@ blob-report
 *.tsbuildinfo
 .vercel
 .DS_Store
+e2e-prod/shots
