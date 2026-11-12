@@ -1,4 +1,4 @@
-import { expect, test, type Locator } from "@playwright/test";
+import { expect, test, type Locator, type Page } from "@playwright/test";
 
 test("demo cards show the picture for each platform that has media", async ({ page }) => {
   await page.goto("/demo");
@@ -17,11 +17,13 @@ test("demo cards show the picture for each platform that has media", async ({ pa
   await expect(ready).toHaveCount(2);
   await expect(ready.nth(0)).toHaveAttribute("alt", "Folded walnut-dyed linen on a studio table");
   await expect(ready.nth(1)).toHaveAttribute("alt", "Close view of the walnut dye along the hem");
-  await expect(page.locator("#post-ig_dead .media-frame")).toHaveCount(0);
+  await expectEveryCardHasPicture(page);
   await expectLoaded(page.locator(".media-frame img"));
 
   await page.goto("/demo?platform=tiktok");
-  await expect(page.locator("#post-tt_novideo .media-frame")).toHaveCount(0);
+  await expect(page.locator("#post-tt_novideo")).toContainText("No video attached");
+  await expect(page.locator("#post-tt_novideo .media-frame img")).toHaveCount(0);
+  await expectEveryCardHasPicture(page, "post-tt_novideo");
   await expect(page.locator("#post-tt_ready .play-badge")).toBeVisible();
   await expect(page.locator("#post-tt_ready .media-frame img")).toHaveAttribute("src", "/demo/tiktok-ready.jpg");
   await expect(page.locator(".media-frame img")).toHaveCount(5);
@@ -31,18 +33,21 @@ test("demo cards show the picture for each platform that has media", async ({ pa
   const xPhoto = page.locator("#post-x_ready .media-frame img");
   await expect(xPhoto).toHaveAttribute("src", "/demo/x-ready.jpg");
   await expect(xPhoto).toHaveAttribute("alt", "Linen shirts on a rack in the studio");
-  await expect(page.locator(".media-frame")).toHaveCount(1);
-  await expectLoaded(xPhoto);
+  await expect(page.locator("#post-x_later .media-frame")).toHaveCount(0);
+  await expect(page.locator(".media-frame img")).toHaveCount(5);
+  await expectLoaded(page.locator(".media-frame img"));
 
   await page.goto("/demo?platform=linkedin");
   await expect(page.locator("#post-li_alt .media-frame img")).toHaveAttribute("src", "/demo/li-desk.jpg");
   await expect(page.locator("#post-li_alt .media-frame img")).toHaveAttribute("alt", "");
-  await expect(page.locator(".media-frame")).toHaveCount(1);
+  await expect(page.locator("#post-li_later .media-frame")).toHaveCount(0);
+  await expect(page.locator(".media-frame img")).toHaveCount(5);
 
   await page.goto("/demo?platform=facebook");
   await expect(page.locator("#post-fb_alt .media-frame img")).toHaveAttribute("alt", "");
   await expect(page.locator("#post-fb_weak .media-frame img")).toHaveAttribute("alt", "image");
-  await expect(page.locator("#post-fb_ready .media-frame")).toHaveCount(0);
+  await expect(page.locator("#post-fb_ready .media-frame img")).toHaveAttribute("src", "/demo/fb-open.jpg");
+  await expect(page.locator("#post-fb_later .media-frame")).toHaveCount(0);
   await expectLoaded(page.locator(".media-frame img"));
 
   await page.setViewportSize({ width: 320, height: 800 });
@@ -54,6 +59,21 @@ test("demo cards show the picture for each platform that has media", async ({ pa
   const pageOverflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
   expect(pageOverflow).toBe(0);
 });
+
+async function expectEveryCardHasPicture(page: Page, exceptId?: string) {
+  const cards = page.locator(".post-list article");
+  const count = await cards.count();
+  expect(count).toBeGreaterThan(0);
+  for (let index = 0; index < count; index += 1) {
+    const card = cards.nth(index);
+    const id = await card.getAttribute("id");
+    if (id === exceptId) continue;
+    const image = card.locator(".media-frame img").first();
+    await expect(image).toBeVisible();
+    await image.scrollIntoViewIfNeeded();
+    await expect.poll(async () => image.evaluate((node) => (node as HTMLImageElement).naturalWidth)).toBeGreaterThan(0);
+  }
+}
 
 async function expectLoaded(images: Locator) {
   const count = await images.count();

@@ -3,6 +3,15 @@
 import { useState } from "react";
 import type { CardThumb } from "@/domain/thumbs";
 
+/** Shown on a TikTok card that has no video, so the empty post is obvious. */
+export function MissingVideo() {
+  return (
+    <div className="media-missing" role="img" aria-label="No video attached">
+      <span>No video attached</span>
+    </div>
+  );
+}
+
 export function MediaStrip({ thumbs, extra }: { thumbs: CardThumb[]; extra: number }) {
   const [failed, setFailed] = useState<Record<number, boolean>>({});
   if (thumbs.length === 0) return null;

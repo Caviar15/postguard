@@ -101,8 +101,23 @@ const FB_WEAK = "https://cdn.northwind.example/fb-weak.jpg";
 const IG_ALT = "https://cdn.northwind.example/ig-square.jpg";
 const IG_READY = "https://cdn.northwind.example/ig-ready.jpg";
 const IG_DETAIL = "https://cdn.northwind.example/ig-detail.jpg";
+const IG_GRID = "https://cdn.northwind.example/ig-grid.jpg";
+const IG_TAGS = "https://cdn.northwind.example/ig-tags.jpg";
+const IG_HASH = "https://cdn.northwind.example/ig-hash.jpg";
+const IG_NOTE = "https://cdn.northwind.example/ig-note.jpg";
 const X_READY = "https://cdn.northwind.example/x-ready.jpg";
+const X_OVER = "https://cdn.northwind.example/x-over.jpg";
+const X_OVERDUE = "https://cdn.northwind.example/x-overdue.jpg";
+const X_NEAR = "https://cdn.northwind.example/x-near.jpg";
+const X_BOLD = "https://cdn.northwind.example/x-bold.jpg";
 const LI_ALT = "https://cdn.northwind.example/li-desk.jpg";
+const LI_PAGES = "https://cdn.northwind.example/li-pages.jpg";
+const LI_APPROVAL = "https://cdn.northwind.example/li-approval.jpg";
+const LI_BOLD = "https://cdn.northwind.example/li-bold.jpg";
+const LI_LINEN = "https://cdn.northwind.example/li-linen.jpg";
+const FB_JOURNAL = "https://cdn.northwind.example/fb-journal.jpg";
+const FB_COMMENT = "https://cdn.northwind.example/fb-comment.jpg";
+const FB_OPEN = "https://cdn.northwind.example/fb-open.jpg";
 
 export type PlatformFixture = {
   organization: { id: string; name: string };
@@ -144,6 +159,10 @@ function instagram(now: Date): PlatformFixture {
       [IG_ALT, ok(IG_ALT)],
       [IG_READY, ok(IG_READY)],
       [IG_DETAIL, ok(IG_DETAIL)],
+      [IG_GRID, ok(IG_GRID)],
+      [IG_TAGS, ok(IG_TAGS)],
+      [IG_HASH, ok(IG_HASH)],
+      [IG_NOTE, ok(IG_NOTE)],
     ]),
     posts: [
       post({
@@ -152,6 +171,7 @@ function instagram(now: Date): PlatformFixture {
         service: "instagram",
         dueAt: hoursFrom(now, 20),
         text: `The grid is up, if the link still works ${SHOP}`,
+        assets: [image(IG_GRID, 1080, 1080, "Walnut-dyed linen shirts hanging on the studio grid")],
       }),
       post({
         id: "ig_tags",
@@ -159,6 +179,7 @@ function instagram(now: Date): PlatformFixture {
         service: "instagram",
         dueAt: hoursFrom(now, 30),
         text: "New dye lot #linen #walnut #studio #cloth #dye #northwind",
+        assets: [image(IG_TAGS, 1080, 1080, "A stack of linen just lifted from the walnut dye")],
       }),
       post({
         id: "ig_alt",
@@ -174,6 +195,7 @@ function instagram(now: Date): PlatformFixture {
         service: "instagram",
         dueAt: hoursFrom(now, 8),
         text: "Big news # coming from the studio this afternoon.",
+        assets: [image(IG_HASH, 1080, 1080, "Undyed linen hanging on the drying line")],
       }),
       post({
         id: "ig_ready",
@@ -192,6 +214,7 @@ function instagram(now: Date): PlatformFixture {
         service: "instagram",
         dueAt: hoursFrom(now, 96),
         text: "The cloth dried evenly. Nothing else to add.",
+        assets: [image(IG_NOTE, 1080, 1080, "Evenly dried linen cloth on a wooden rack")],
       }),
     ],
   };
@@ -275,7 +298,13 @@ function x(now: Date): PlatformFixture {
     organization: { id: "org_northwind", name: "Northwind Studio" },
     channels: [channel(id, "twitter", "Northwind on X")],
     note: "X example: a post over the free 280 limit, one already overdue, and one within 5% of the limit.",
-    links: new Map([[X_READY, ok(X_READY)]]),
+    links: new Map([
+      [X_READY, ok(X_READY)],
+      [X_OVER, ok(X_OVER)],
+      [X_OVERDUE, ok(X_OVERDUE)],
+      [X_NEAR, ok(X_NEAR)],
+      [X_BOLD, ok(X_BOLD)],
+    ]),
     posts: [
       post({
         id: "x_over",
@@ -283,6 +312,7 @@ function x(now: Date): PlatformFixture {
         service: "twitter",
         dueAt: hoursFrom(now, 22),
         text: repeatTo("The linen series is back in the studio this week. ", 320),
+        assets: [image(X_OVER, 1200, 800, "A long row of linen pieces waiting on the table")],
       }),
       post({
         id: "x_overdue",
@@ -290,6 +320,7 @@ function x(now: Date): PlatformFixture {
         service: "twitter",
         dueAt: hoursFrom(now, -3),
         text: "Studio hours reminder that never left the queue.",
+        assets: [image(X_OVERDUE, 1200, 800, "A clock in the studio past the posted hours")],
       }),
       post({
         id: "x_near",
@@ -297,6 +328,7 @@ function x(now: Date): PlatformFixture {
         service: "twitter",
         dueAt: hoursFrom(now, 40),
         text: repeatTo("Walnut dye, same cloth, short note. ", 270),
+        assets: [image(X_NEAR, 1200, 800, "A short stack of walnut-dyed cloth")],
       }),
       post({
         id: "x_bold",
@@ -304,6 +336,7 @@ function x(now: Date): PlatformFixture {
         service: "twitter",
         dueAt: hoursFrom(now, 14),
         text: `${mathBold("Sale")} starts Friday in the studio.`,
+        assets: [image(X_BOLD, 1200, 800, "A sale tag tied to a walnut-dyed shirt")],
       }),
       post({
         id: "x_ready",
@@ -330,7 +363,13 @@ function linkedin(now: Date): PlatformFixture {
     organization: { id: "org_northwind", name: "Northwind Studio" },
     channels: [channel(id, "linkedin", "Northwind Studio")],
     note: "LinkedIn example: a post over 3,000 characters, one waiting for approval in a few hours, and a photo with no alt text.",
-    links: new Map([[LI_ALT, ok(LI_ALT)]]),
+    links: new Map([
+      [LI_ALT, ok(LI_ALT)],
+      [LI_PAGES, ok(LI_PAGES)],
+      [LI_APPROVAL, ok(LI_APPROVAL)],
+      [LI_BOLD, ok(LI_BOLD)],
+      [LI_LINEN, ok(LI_LINEN)],
+    ]),
     posts: [
       post({
         id: "li_over",
@@ -338,6 +377,7 @@ function linkedin(now: Date): PlatformFixture {
         service: "linkedin",
         dueAt: hoursFrom(now, 26),
         text: repeatTo("The studio notes continue with the same cloth and a new dye lot. ", 3100),
+        assets: [image(LI_PAGES, 1200, 800, "Pages of studio notes spread next to the cloth")],
       }),
       post({
         id: "li_approval",
@@ -346,6 +386,7 @@ function linkedin(now: Date): PlatformFixture {
         status: "needs_approval",
         dueAt: hoursFrom(now, 5),
         text: "The linen notes are ready. This still needs a yes before it can go out.",
+        assets: [image(LI_APPROVAL, 1200, 800, "Printed linen notes waiting on the desk")],
       }),
       post({
         id: "li_alt",
@@ -361,6 +402,7 @@ function linkedin(now: Date): PlatformFixture {
         service: "linkedin",
         dueAt: hoursFrom(now, 16),
         text: `${mathBold("Note")} from the dye room: the lot is even.`,
+        assets: [image(LI_BOLD, 1200, 800, "A dyed length of linen with an even walnut tone")],
       }),
       post({
         id: "li_later",
@@ -376,6 +418,7 @@ function linkedin(now: Date): PlatformFixture {
         service: "linkedin",
         dueAt: hoursFrom(now, 100),
         text: "We are dyeing linen in walnut again. The cloth is the same.",
+        assets: [image(LI_LINEN, 1200, 800, "Linen going into the walnut dye")],
       }),
     ],
   };
@@ -391,6 +434,9 @@ function facebook(now: Date): PlatformFixture {
       [FB_DEAD, dead(FB_DEAD)],
       [FB_PHOTO, ok(FB_PHOTO)],
       [FB_WEAK, ok(FB_WEAK)],
+      [FB_JOURNAL, ok(FB_JOURNAL)],
+      [FB_COMMENT, ok(FB_COMMENT)],
+      [FB_OPEN, ok(FB_OPEN)],
     ]),
     posts: [
       post({
@@ -401,6 +447,7 @@ function facebook(now: Date): PlatformFixture {
         text: `This week's journal ${FB_DEAD}`,
         hasFirstCommentField: true,
         firstComment: "More in the piece.",
+        assets: [image(FB_JOURNAL, 1200, 900, "The studio journal open to this week's dye notes")],
       }),
       post({
         id: "fb_comment",
@@ -410,6 +457,7 @@ function facebook(now: Date): PlatformFixture {
         text: "New dye, same cloth. Link in the comments.",
         hasFirstCommentField: true,
         firstComment: "",
+        assets: [image(FB_COMMENT, 1200, 900, "Fresh walnut dye on the same linen cloth")],
       }),
       post({
         id: "fb_alt",
@@ -439,6 +487,7 @@ function facebook(now: Date): PlatformFixture {
         text: "Open studio Thursday, 10 to 4. Come see the linen.",
         hasFirstCommentField: true,
         firstComment: "No ticket needed.",
+        assets: [image(FB_OPEN, 1200, 900, "The open studio table with the linen series laid out")],
       }),
       post({
         id: "fb_later",
