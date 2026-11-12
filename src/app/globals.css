@@ -504,9 +504,6 @@ code { font-size: 0.9em; background: #f6f1e7; padding: 1px 5px; border-radius: 4
 }
 .setup-form .cta-row { margin: 0; }
 button.button:disabled { opacity: 0.5; cursor: not-allowed; }
-.setup-checks { list-style: none; padding: 0; margin: 0 0 12px; display: grid; gap: 6px; }
-.setup-checks li.ok { color: var(--ok); }
-.setup-checks li.missing { color: var(--ink-soft); }
 @media (max-width: 600px) {
   .email-head { padding: 10px 12px; }
   .email-head div { grid-template-columns: 56px minmax(0, 1fr); }

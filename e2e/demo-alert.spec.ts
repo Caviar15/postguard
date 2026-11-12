@@ -63,6 +63,8 @@ test("alert setup asks for the setup code and shows no token", async ({ page }) 
   await page.goto("/alerts/setup");
   await expect(page.getByRole("heading", { name: "Alerts that come to you." })).toBeVisible();
   await expect(page.getByLabel(/Setup code/)).toBeVisible();
-  await expect(page.getByTestId("setup-checks")).toContainText("CRON_SECRET");
+  // It must not say which settings exist: no variable names, no "set / not set" list.
+  const text = await page.locator("body").innerText();
+  for (const name of ["CRON_SECRET", "RESEND_API_KEY", "ALERT_EMAIL_TO", "KV_REST_API", "UPSTASH", "SESSION_SECRET"]) expect(text).not.toContain(name);
   await expect(page.locator("body")).not.toContainText("refresh_token");
 });

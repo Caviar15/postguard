@@ -10,17 +10,9 @@ export const metadata: Metadata = { title: "Alert setup · PostGuard", robots: {
 
 const PROBLEMS: Record<string, string> = {
   code: "That setup code is not right, or the sign-in took longer than 10 minutes. Start again.",
-  store: "The alert store is not reachable. Check the Upstash Redis variables in Vercel.",
+  store: "The alert store is not reachable. Try again in a moment.",
   refresh: "Buffer did not return a refresh token, which background alerts need. Check that the app asks for offline_access.",
 };
-
-function Item({ name, ok }: { name: string; ok: boolean }) {
-  return (
-    <li className={ok ? "ok" : "missing"}>
-      <span aria-hidden="true">{ok ? "✓" : "–"}</span> {name} <span className="fine">{ok ? "set" : "not set"}</span>
-    </li>
-  );
-}
 
 export default async function AlertSetupPage({ searchParams }: { searchParams: Promise<{ on?: string; off?: string; problem?: string }> }) {
   const params = await searchParams;
@@ -34,7 +26,12 @@ export default async function AlertSetupPage({ searchParams }: { searchParams: P
       enabled = null;
     }
   }
-  const ready = oauthConfigured() && configured && Boolean(secretConfigured(env));
+  const ready =
+    oauthConfigured() &&
+    configured &&
+    Boolean(secretConfigured(env)) &&
+    Boolean(env.RESEND_API_KEY?.trim()) &&
+    Boolean(alertSettings(env).email);
   const problem = params.problem ? PROBLEMS[params.problem] : null;
 
   return (
@@ -62,7 +59,7 @@ export default async function AlertSetupPage({ searchParams }: { searchParams: P
             This is a separate Buffer sign-in from the dashboard, because Buffer refresh tokens are single use. PostGuard saves that sign-in&rsquo;s refresh token on the server, encrypted, so the daily check can run while you are away. Turning alerts off, or the unsubscribe link in any alert, deletes it.
           </p>
           <form action="/api/alerts/enable" method="post" className="setup-form">
-            <label htmlFor="code">Setup code <span className="fine">(the CRON_SECRET you set in Vercel)</span></label>
+            <label htmlFor="code">Setup code <span className="fine">(the secret you set for this deployment)</span></label>
             <input id="code" name="code" type="password" autoComplete="off" required minLength={16} />
             <div className="cta-row">
               <button type="submit" className="button" disabled={!ready}>{enabled ? "Connect again" : "Connect Buffer for alerts"}</button>
@@ -78,17 +75,11 @@ export default async function AlertSetupPage({ searchParams }: { searchParams: P
           ) : null}
         </section>
 
-        <section className="card setup-card">
-          <h2>What is set up</h2>
-          <p>Names only. Values are never shown.</p>
-          <ul className="setup-checks" data-testid="setup-checks">
-            <Item name="CRON_SECRET" ok={Boolean(secretConfigured(env))} />
-            <Item name="RESEND_API_KEY" ok={Boolean(env.RESEND_API_KEY?.trim())} />
-            <Item name="ALERT_EMAIL_TO" ok={Boolean(alertSettings(env).email)} />
-            <Item name="Alert store (Upstash Redis)" ok={configured} />
-          </ul>
-          {ready ? null : <p className="banner" role="note">Alerts cannot be turned on until every item above is set.</p>}
-        </section>
+        {ready ? null : (
+          <p className="banner" role="note" data-testid="setup-not-ready">
+            Alerts are not available on this deployment yet. The owner needs to finish the setup described in the README.
+          </p>
+        )}
       </main>
     </>
   );
