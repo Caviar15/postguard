@@ -1,16 +1,20 @@
+"use client";
+
+import { useState } from "react";
 import type { CropPreview as CropPreviewData } from "@/domain/types";
 
 export function CropPreview({ preview }: { preview: CropPreviewData }) {
+  const [failed, setFailed] = useState(false);
   const caption = preview.cropped
     ? `${preview.width}×${preview.height}. A centered crop keeps ${preview.label}. The hatched area is what gets cut off.`
     : `${preview.width}×${preview.height} fits ${preview.label}. Nothing is cut off.`;
   return (
     <figure className={preview.cropped ? "crop" : "crop crop-ok"}>
       <div className="crop-frame" style={{ aspectRatio: `${preview.width} / ${preview.height}` }}>
-        {preview.src ? (
+        {preview.src && !failed ? (
           // The frame matches the file's own ratio. The overlay, not CSS, does the crop.
           // eslint-disable-next-line @next/next/no-img-element
-          <img src={preview.src} alt="" />
+          <img src={preview.src} alt="" loading="lazy" decoding="async" onError={() => setFailed(true)} />
         ) : (
           <div className="crop-fallback" />
         )}

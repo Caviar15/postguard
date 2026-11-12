@@ -6,6 +6,7 @@ import { bufferFixUrl } from "@/buffer/deep-link";
 import { quotaLabel } from "@/buffer/rate-limit";
 import { staticUrlRisk } from "@/links/risk";
 import { checkMany, type CheckOptions } from "@/links/checker";
+import { cardMedia } from "@/domain/thumbs";
 import { cropForPost } from "@/rules/crop";
 import { excerpt } from "@/rules/context";
 import { runRules } from "@/rules/engine";
@@ -139,6 +140,7 @@ function buildCards(posts: Post[], channels: Channel[], findings: ScanReport["fi
       const channel = byId.get(post.channelId);
       const frame = cropForPost(post, post.assets.findIndex((asset) => asset.type === "image" || asset.type === "video"));
       const asset = post.assets.find((item) => item.type === "image" || item.type === "video");
+      const visual = cardMedia(post.assets);
       const preview: CropPreview | null = frame && asset?.width && asset.height
         ? {
             src: asset.type === "image" ? asset.source : asset.thumbnail,
@@ -166,6 +168,8 @@ function buildCards(posts: Post[], channels: Channel[], findings: ScanReport["fi
         fixUrl: bufferFixUrl(post.channelId, post.id),
         needsAlt: post.assets.some((item) => item.type === "image" && !(item.altText ?? "").trim()),
         preview,
+        media: visual.thumbs,
+        mediaExtra: visual.extra,
       };
     });
 }

@@ -145,6 +145,13 @@ export type CropPreview = {
   right: number;
 };
 
+export type CardThumb = {
+  src: string;
+  /** The asset's alt text. Empty when the post has none. */
+  alt: string;
+  kind: "image" | "video";
+};
+
 export type PostCard = {
   id: string;
   channelId: string;
@@ -160,6 +167,10 @@ export type PostCard = {
   fixUrl: string;
   needsAlt: boolean;
   preview: CropPreview | null;
+  /** Pictures already on the post. Empty when the post has no showable media. */
+  media: CardThumb[];
+  /** Pictures past the strip, shown as “+N” on the last frame. */
+  mediaExtra: number;
 };
 
 export type AltSuggestion = {

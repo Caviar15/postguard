@@ -100,6 +100,8 @@ const FB_PHOTO = "https://cdn.northwind.example/fb-photo.jpg";
 const FB_WEAK = "https://cdn.northwind.example/fb-weak.jpg";
 const IG_ALT = "https://cdn.northwind.example/ig-square.jpg";
 const IG_READY = "https://cdn.northwind.example/ig-ready.jpg";
+const IG_DETAIL = "https://cdn.northwind.example/ig-detail.jpg";
+const X_READY = "https://cdn.northwind.example/x-ready.jpg";
 const LI_ALT = "https://cdn.northwind.example/li-desk.jpg";
 
 export type PlatformFixture = {
@@ -141,6 +143,7 @@ function instagram(now: Date): PlatformFixture {
       [SHOP, dead(SHOP)],
       [IG_ALT, ok(IG_ALT)],
       [IG_READY, ok(IG_READY)],
+      [IG_DETAIL, ok(IG_DETAIL)],
     ]),
     posts: [
       post({
@@ -178,7 +181,10 @@ function instagram(now: Date): PlatformFixture {
         service: "instagram",
         dueAt: hoursFrom(now, 70),
         text: "Open studio Thursday, 10 to 4. The linen series is on the table.",
-        assets: [image(IG_READY, 1080, 1080, "Folded walnut-dyed linen on a studio table")],
+        assets: [
+          image(IG_READY, 1080, 1080, "Folded walnut-dyed linen on a studio table"),
+          image(IG_DETAIL, 1080, 1080, "Close view of the walnut dye along the hem"),
+        ],
       }),
       post({
         id: "ig_note",
@@ -269,7 +275,7 @@ function x(now: Date): PlatformFixture {
     organization: { id: "org_northwind", name: "Northwind Studio" },
     channels: [channel(id, "twitter", "Northwind on X")],
     note: "X example: a post over the free 280 limit, one already overdue, and one within 5% of the limit.",
-    links: new Map(),
+    links: new Map([[X_READY, ok(X_READY)]]),
     posts: [
       post({
         id: "x_over",
@@ -305,6 +311,7 @@ function x(now: Date): PlatformFixture {
         service: "twitter",
         dueAt: hoursFrom(now, 10),
         text: "Open studio Thursday, 10 to 4.",
+        assets: [image(X_READY, 1200, 800, "Linen shirts on a rack in the studio")],
       }),
       post({
         id: "x_later",

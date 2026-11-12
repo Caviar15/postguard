@@ -5,6 +5,7 @@ import Link from "next/link";
 import { PRIORITIES, PRIORITY_LABEL, countPriorities, findingsForCard, selectCards } from "@/domain/readiness";
 import type { AltSuggestion, Priority, ScanReport } from "@/domain/types";
 import { CropPreview } from "./CropPreview";
+import { MediaStrip } from "./MediaStrip";
 import { Brand } from "./Brand";
 import { addCalendarDays, calendarDay, timelineZone } from "@/domain/timeline";
 import { DEMO_PLATFORMS, platformLabel, type DemoPlatform } from "@/demo/platforms";
@@ -306,7 +307,10 @@ export function Dashboard({
             const live = liveSuggestions[card.id];
             return (
               <article key={card.id} id={`post-${card.id}`} className={`post-card priority-${card.priority}`} data-priority={card.priority}>
-                {card.preview ? <CropPreview preview={card.preview} /> : <div className="crop-spacer" />}
+                <div className="card-visual">
+                  {card.media.length > 0 ? <MediaStrip thumbs={card.media} extra={card.mediaExtra} /> : null}
+                  {card.preview ? <CropPreview preview={card.preview} /> : card.media.length === 0 ? <div className="crop-spacer" /> : null}
+                </div>
                 <div>
                   <div className="meta">
                     <span className={`priority priority-${card.priority}`}>{PRIORITY_LABEL[card.priority]}</span>
