@@ -15,6 +15,7 @@ import { mediaRule } from "./media";
 import { placeholders } from "./placeholders";
 import { schedule } from "./schedule";
 import { threadLengths } from "./threads";
+import { tiktokVideo } from "./tiktok";
 
 export function runRules(input: {
   posts: Post[];
@@ -40,6 +41,7 @@ export function runRules(input: {
     ...channelHealth(ctx),
     ...schedule(ctx),
     ...approvals(ctx),
+    ...tiktokVideo(ctx),
     ...placeholders(ctx),
     ...hashtags(ctx),
   ];

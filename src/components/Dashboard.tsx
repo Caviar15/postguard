@@ -7,7 +7,8 @@ import type { AltSuggestion, Priority, ScanReport } from "@/domain/types";
 import { CropPreview } from "./CropPreview";
 import { Brand } from "./Brand";
 import { addCalendarDays, calendarDay, timelineZone } from "@/domain/timeline";
-import { formatDue, serviceLabel } from "./service";
+import { DEMO_PLATFORMS, platformLabel, type DemoPlatform } from "@/demo/platforms";
+import { formatDue, serviceLabel, serviceMark } from "./service";
 
 const DAY_CHOICES = [3, 7, 14];
 type SortKey = "priority" | "time";
@@ -24,6 +25,7 @@ export function Dashboard({
   sessionNote,
   initialSort = "priority",
   initialFilter = "all",
+  platform = "all",
 }: {
   report: ScanReport;
   basePath: string;
@@ -32,6 +34,8 @@ export function Dashboard({
   initialSort?: SortKey;
   /** From ?filter= on the server, so the first paint already matches the chip. */
   initialFilter?: FilterKey;
+  /** Demo example queue. Live scans ignore it. */
+  platform?: DemoPlatform;
 }) {
   const [filter, setFilter] = useState<FilterKey>(initialFilter);
   const [sort, setSort] = useState<SortKey>(initialSort);
@@ -43,6 +47,16 @@ export function Dashboard({
     if (drafts) params.set("drafts", "1");
     if (sort === "time") params.set("sort", "time");
     if (filter !== "all") params.set("filter", filter);
+    if (platform !== "all") params.set("platform", platform);
+    return `${basePath}?${params.toString()}`;
+  };
+
+  const platformHref = (next: DemoPlatform) => {
+    const params = new URLSearchParams({ days: String(report.windowDays) });
+    if (report.includeDrafts) params.set("drafts", "1");
+    if (sort === "time") params.set("sort", "time");
+    if (filter !== "all") params.set("filter", filter);
+    if (next !== "all") params.set("platform", next);
     return `${basePath}?${params.toString()}`;
   };
 
@@ -153,12 +167,22 @@ export function Dashboard({
       <main id="main" className="wrap">
         <p className="kicker">{report.organization.name}</p>
         <h1>Queue health</h1>
+        {report.mode === "demo" ? (
+          <nav className="platforms" aria-label="Example queue">
+            {DEMO_PLATFORMS.map((item) => (
+              <Link key={item} href={platformHref(item)} aria-current={item === platform ? "page" : undefined}>
+                {platformLabel(item)}
+              </Link>
+            ))}
+          </nav>
+        ) : null}
         <p className="summary" data-testid="risk">{report.riskHeadline}</p>
         <div className="channel-row">
           {report.channels.map((channel) => (
             <div key={channel.id} className={`channel-chip priority-${channel.priority}`}>
               <strong>{channel.name}</strong>
-              <span>
+              <span className="service-line">
+                <span className="service-mark" aria-hidden="true">{serviceMark(channel.service)}</span>
                 {serviceLabel(channel.service)} · {channel.postCount} {channel.postCount === 1 ? "post" : "posts"} · score {channel.score}
               </span>
               <span className={`priority priority-${channel.priority}`}>{PRIORITY_LABEL[channel.priority]}</span>
@@ -286,7 +310,10 @@ export function Dashboard({
                 <div>
                   <div className="meta">
                     <span className={`priority priority-${card.priority}`}>{PRIORITY_LABEL[card.priority]}</span>
-                    <span>{serviceLabel(card.service)} · {card.channelName}</span>
+                    <span className="service-line">
+                      <span className="service-mark" aria-hidden="true">{serviceMark(card.service)}</span>
+                      {serviceLabel(card.service)} · {card.channelName}
+                    </span>
                     <span>{formatDue(card.dueAt)}</span>
                     {card.status === "draft" ? <span className="pill">Draft</span> : null}
                     {card.status === "needs_approval" ? <span className="pill">Awaiting approval</span> : null}

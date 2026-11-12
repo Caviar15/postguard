@@ -19,6 +19,24 @@ export function serviceLabel(service: string): string {
   return LABELS[service] ?? service;
 }
 
+const MARKS: Record<string, string> = {
+  instagram: "IG",
+  facebook: "f",
+  linkedin: "in",
+  twitter: "X",
+  tiktok: "TT",
+  threads: "Th",
+  pinterest: "P",
+  bluesky: "B",
+  youtube: "YT",
+  mastodon: "M",
+};
+
+/** Short mark shown beside the service name. TikTok is TT, not the raw id. */
+export function serviceMark(service: string): string {
+  return MARKS[service] ?? service.slice(0, 1).toUpperCase();
+}
+
 export function formatDue(iso: string | null, now = Date.now()): string {
   if (!iso) return "No publish time";
   const delta = new Date(iso).getTime() - now;
