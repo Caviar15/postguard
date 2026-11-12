@@ -115,9 +115,19 @@ export function compareByTime(a: { dueAt: string | null }, b: { dueAt: string | 
   return 0;
 }
 
-/** Blocker, then High, Medium, Low, Ready. Ties break by publish time. */
-export function compareByPriority(a: { priority: Priority; dueAt: string | null }, b: { priority: Priority; dueAt: string | null }): number {
+/** How much is at stake on one post: the sum of its finding penalties. Info costs nothing. */
+export function postRisk(findings: Finding[]): number {
+  return findings.reduce((total, finding) => total + PENALTY[finding.severity], 0);
+}
+
+/** Blocker, then High, Medium, Low, Ready. Within a priority the heavier post first, then the earlier publish time. */
+export function compareByPriority(
+  a: { priority: Priority; dueAt: string | null; risk?: number },
+  b: { priority: Priority; dueAt: string | null; risk?: number },
+): number {
   const rank = RANK[a.priority] - RANK[b.priority];
   if (rank !== 0) return rank;
+  const risk = (b.risk ?? 0) - (a.risk ?? 0);
+  if (risk !== 0) return risk;
   return compareByTime(a, b);
 }
