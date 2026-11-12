@@ -25,8 +25,31 @@ describe("hashtag rule", () => {
   it("still flags a real stray # and a sixth tag", () => {
     expect(tagsOf("Big news # coming soon").some((f) => f.title === "Broken hashtag")).toBe(true);
     const six = Array.from({ length: 6 }, (_, i) => `#t${i}`).join(" ");
-    expect(tagsOf(six).some((f) => f.title === "More than 5 hashtags")).toBe(true);
-    expect(tagsOf(six).some((f) => f.detail.includes("Buffer refuses Instagram posts with more than 5 hashtags"))).toBe(true);
+    const over = tagsOf(six).filter((f) => f.title === "More than 5 hashtags");
+    expect(over).toHaveLength(1);
+    expect(over[0]?.detail).toContain("Instagram caps hashtags at 5 per caption. Buffer's composer blocks publishing above 5.");
+    expect(over[0]?.detail).not.toMatch(/refuses|fail when it publishes/i);
+  });
+  it("counts the caption and the first comment separately", () => {
+    const six = Array.from({ length: 6 }, (_, i) => `#c${i}`).join(" ");
+    const three = "#one #two #three";
+    const both = hashtags(ctxFor([
+      makePost({ service: "instagram", text: six, hasFirstCommentField: true, firstComment: six }),
+    ]));
+    expect(both.filter((f) => f.title === "More than 5 hashtags")).toHaveLength(2);
+    const commentOnly = hashtags(ctxFor([
+      makePost({ service: "instagram", text: "New drop", hasFirstCommentField: true, firstComment: six }),
+    ]));
+    expect(commentOnly.filter((f) => f.title === "More than 5 hashtags")).toHaveLength(1);
+    expect(commentOnly[0]?.detail).toContain("first comment");
+    const split = hashtags(ctxFor([
+      makePost({ service: "instagram", text: three, hasFirstCommentField: true, firstComment: three }),
+    ]));
+    expect(split.filter((f) => f.title === "More than 5 hashtags")).toHaveLength(0);
+    const otherNetwork = hashtags(ctxFor([
+      makePost({ service: "linkedin", text: six, hasFirstCommentField: true, firstComment: six }),
+    ]));
+    expect(otherNetwork.filter((f) => f.title === "More than 5 hashtags")).toHaveLength(0);
   });
 });
 
