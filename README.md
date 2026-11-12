@@ -71,7 +71,7 @@ One scan, on demand:
 
 Paging stops after 12 pages or when the 15-minute `RateLimit` window has 2 requests left. The meter reads `RateLimit` and `RateLimit-Policy` and matches windows by `w` (900, 86400, 2592000), not by the policy name.
 
-App-client limits are per client and shared by every connected user. As of the docs fetched 10 Nov 2026 they start at 100 / 15 minutes, 500 / 24 hours, and 15,000 / 30 days, and they grow per authorized user. The October planning note of “250/day” is out of date. PostGuard does not hard-code a daily budget; it follows the headers.
+App-client limits are per client and shared by every connected user. They are 100 requests per 15 minutes plus 10 for each authorized user, 500 per 24 hours plus 25 per user, and 15,000 per 30 days plus 100 per user, counting up to 1,000 users. The October planning note of “250/day” is out of date. PostGuard does not hard-code a daily budget. It follows the rate-limit headers, and a 429 with no Retry-After uses `extensions.window` (`15m`, `24h`, or `30d`).
 
 The Experimental `configuration` query is not called. Limits come from the [character-limits guide](https://developers.buffer.com/guides/character-limits.md), with the sources noted in the rules.
 

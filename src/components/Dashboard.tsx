@@ -36,6 +36,15 @@ export function Dashboard({
     return `${basePath}?${params.toString()}`;
   };
 
+  // A "Scan again" lands on ?refresh=1. Drop it from the address bar once the scan has rendered, so a
+  // reload, back/forward or a copied link reads the cache instead of spending another scan of the shared quota.
+  useEffect(() => {
+    const url = new URL(window.location.href);
+    if (url.searchParams.get("refresh") !== "1") return;
+    url.searchParams.delete("refresh");
+    window.history.replaceState(window.history.state, "", `${url.pathname}${url.search}${url.hash}`);
+  }, [report]);
+
   useEffect(() => {
     if (!suggest || report.mode !== "live") return;
     const pending = report.cards.filter(
@@ -106,8 +115,8 @@ export function Dashboard({
         </div>
         <p className="proof">
           {report.mode === "demo"
-            ? "Read-only · 2 scopes · sample data, not a live queue"
-            : "Read-only · 2 scopes · live Buffer API"}
+            ? "Read-only · 2 data scopes · sample data, not a live queue"
+            : "Read-only · 2 data scopes · live Buffer API"}
         </p>
       </header>
       <main id="main" className="wrap">

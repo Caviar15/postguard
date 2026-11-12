@@ -10,10 +10,12 @@ export class BufferAuthError extends Error {
 
 export class BufferRateLimitError extends Error {
   retryAfter: number;
+  waitLabel: string;
   constructor(retryAfter: number, message = "Buffer rate limit reached.") {
     super(message);
     this.name = "BufferRateLimitError";
     this.retryAfter = retryAfter;
+    this.waitLabel = waitLabel(retryAfter);
   }
 }
 
@@ -24,16 +26,38 @@ export class BufferApiError extends Error {
   }
 }
 
-type GraphQLError = { message?: string };
+type GraphQLError = { message?: string; extensions?: { window?: unknown } };
 
-/** Buffer's shortest documented quota window. A 429 with no usable Retry-After would otherwise say "0 seconds". */
+/** App-client windows named in a 429 body: extensions.window. */
+const WINDOW_SECONDS: Record<string, number> = {
+  "15m": 15 * 60,
+  "24h": 24 * 60 * 60,
+  "30d": 30 * 24 * 60 * 60,
+};
+
+/** Buffer's shortest app-client window, used only when the 429 names neither a header nor a window. */
 const RATE_LIMIT_WINDOW_SECONDS = 15 * 60;
 
-function retryAfterSeconds(header: string | null): number {
-  if (header == null || header.trim() === "") return RATE_LIMIT_WINDOW_SECONDS;
-  const parsed = Number(header);
-  if (!Number.isFinite(parsed) || parsed <= 0) return RATE_LIMIT_WINDOW_SECONDS;
-  return parsed;
+function retryAfterSeconds(header: string | null, window: unknown): number {
+  if (header != null && header.trim() !== "") {
+    const parsed = Number(header);
+    if (Number.isFinite(parsed) && parsed > 0) return parsed;
+  }
+  if (typeof window === "string" && WINDOW_SECONDS[window] !== undefined) return WINDOW_SECONDS[window];
+  return RATE_LIMIT_WINDOW_SECONDS;
+}
+
+/** A person should not have to read a raw second count. */
+export function waitLabel(seconds: number): string {
+  if (!Number.isFinite(seconds) || seconds <= 0) return "about 15 minutes";
+  if (seconds < 90) return "about a minute";
+  if (seconds < 90 * 60) return `about ${Math.max(2, Math.round(seconds / 60))} minutes`;
+  if (seconds < 36 * 60 * 60) {
+    const hours = Math.max(1, Math.round(seconds / 3600));
+    return hours === 1 ? "about 1 hour" : `about ${hours} hours`;
+  }
+  const days = Math.max(1, Math.round(seconds / 86400));
+  return days === 1 ? "about 1 day" : `about ${days} days`;
 }
 
 export class BufferClient {
@@ -85,7 +109,8 @@ export class BufferClient {
     if (response.status === 401) throw new BufferAuthError();
     if (response.status === 429) {
       const message = body?.errors?.[0]?.message ?? "Too many requests from this client.";
-      throw new BufferRateLimitError(retryAfterSeconds(response.headers.get("retry-after")), message);
+      const window = body?.errors?.[0]?.extensions?.window;
+      throw new BufferRateLimitError(retryAfterSeconds(response.headers.get("retry-after"), window), message);
     }
     if (!response.ok) {
       throw new BufferApiError(body?.errors?.[0]?.message ?? `Buffer returned HTTP ${response.status}.`);

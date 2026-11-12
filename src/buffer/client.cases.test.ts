@@ -42,7 +42,14 @@ describe("Buffer client", () => {
   it("401 maps to an auth error and 429 carries Retry-After", async () => {
     const mk = (status: number, headers: Record<string, string> = {}) => (async () => new Response(JSON.stringify({ errors: [{ message: "m" }] }), { status, headers })) as unknown as typeof fetch;
     await expect(new BufferClient("t", mk(401)).query("{a}")).rejects.toMatchObject({ name: "BufferAuthError" });
-    await expect(new BufferClient("t", mk(429, { "retry-after": "42" })).query("{a}")).rejects.toMatchObject({ name: "BufferRateLimitError", retryAfter: 42 });
-    await expect(new BufferClient("t", mk(429)).query("{a}")).rejects.toMatchObject({ name: "BufferRateLimitError", retryAfter: 15 * 60 });
+    await expect(new BufferClient("t", mk(429, { "retry-after": "42" })).query("{a}")).rejects.toMatchObject({ name: "BufferRateLimitError", retryAfter: 42, waitLabel: "about a minute" });
+    await expect(new BufferClient("t", mk(429)).query("{a}")).rejects.toMatchObject({ name: "BufferRateLimitError", retryAfter: 15 * 60, waitLabel: "about 15 minutes" });
+  });
+  it("uses extensions.window when a 429 has no Retry-After, and the header wins when both exist", async () => {
+    const body = (window: string) => JSON.stringify({ errors: [{ message: "m", extensions: { code: "RATE_LIMIT_EXCEEDED", window } }] });
+    const mk = (headers: Record<string, string>, window: string) => (async () => new Response(body(window), { status: 429, headers })) as unknown as typeof fetch;
+    await expect(new BufferClient("t", mk({}, "24h")).query("{a}")).rejects.toMatchObject({ retryAfter: 24 * 60 * 60, waitLabel: "about 24 hours" });
+    await expect(new BufferClient("t", mk({}, "30d")).query("{a}")).rejects.toMatchObject({ retryAfter: 30 * 24 * 60 * 60, waitLabel: "about 30 days" });
+    await expect(new BufferClient("t", mk({ "retry-after": "42" }, "30d")).query("{a}")).rejects.toMatchObject({ retryAfter: 42 });
   });
 });

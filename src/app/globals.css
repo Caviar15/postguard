@@ -339,4 +339,14 @@ code { font-size: 0.9em; background: #f6f1e7; padding: 1px 5px; border-radius: 4
   .timeline { grid-template-columns: repeat(4, minmax(0, 1fr)); }
 }
 
+@media (max-width: 600px) {
+  .channel-row {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    max-width: 100%;
+    min-width: 0;
+  }
+  .channel-chip { flex: 0 0 auto; }
+}
+
 .site-note { padding: 10px 0 24px; color: var(--ink-soft); font-size: 0.8rem; }

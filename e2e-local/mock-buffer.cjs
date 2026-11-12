@@ -12,7 +12,7 @@ globalThis.fetch = async (input, init) => {
   fs.appendFileSync(LOG, `${Date.now()} ${name} ${JSON.stringify(body.variables ?? {}).slice(0, 200)}\n`);
   const h = { "content-type": "application/json", ratelimit: '"15min";r=90;t=800, "24h";r=400;t=80000', "ratelimit-policy": '"15min";q=100;w=900, "24h";q=500;w=86400' };
   const handler = sc[name];
-  if (handler?.status) return new Response(JSON.stringify(handler.body ?? { errors: [{ message: "scenario error" }] }), { status: handler.status, headers: { ...h, "retry-after": "60" } });
+  if (handler?.status) return new Response(JSON.stringify(handler.body ?? { errors: [{ message: "scenario error" }] }), { status: handler.status, headers: { ...h, ...(handler.noRetryAfter ? {} : { "retry-after": "60" }) } });
   if (name === "PostGuardPosts") {
     const pages = sc.postPages ?? [[]];
     const after = body.variables.after ? Number(body.variables.after) : 0;

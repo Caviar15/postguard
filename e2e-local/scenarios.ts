@@ -8,6 +8,8 @@ export const scenarios = {
   huge: { channels: [channel()], postPages: Array.from({ length: 14 }, (_, p) => Array.from({ length: 50 }, (_, i) => post(p * 50 + i, { text: ("Long caption with many words about the studio. ").repeat(60) + ` #${p}-${i}` }))) },
   badTimezone: { channels: [channel({ timezone: "Not/AZone" })], postPages: [[post(1)]] },
   rateLimited: { channels: [channel()], PostGuardPosts: { status: 429, body: { errors: [{ message: "Too many requests" }] } } },
+  rateLimitedNoHeader: { channels: [channel()], PostGuardPosts: { status: 429, noRetryAfter: true, body: { errors: [{ message: "Too many requests" }] } } },
+  firstCommentTags: { channels: [channel()], postPages: [[post(1, { text: "New drop", metadata: { __typename: "InstagramPostMetadata", type: "post", firstComment: Array.from({ length: 8 }, (_, i) => `#tag${i}`).join(" "), link: null, annotations: [] } })]] },
   authRejected: { PostGuardAccount: { status: 401, body: { errors: [{ message: "bad token" }] } } },
   nullText: { channels: [channel()], postPages: [[post(1), { ...post(2), text: null }, post(3, { channelService: "mysteryservice" })]] },
   noDimensions: { channels: [channel()], postPages: [[post(1, { assets: [img(0, 0, null)] })]] },

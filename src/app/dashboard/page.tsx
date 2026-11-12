@@ -59,16 +59,17 @@ export default async function DashboardPage({
       redirect(`/api/auth/refresh?next=${encodeURIComponent(retryPath)}`);
     }
     const message = error instanceof BufferRateLimitError
-      ? `Buffer’s shared rate limit is exhausted. Retry after ${error.retryAfter} seconds. The demo queue does not use quota.`
+      ? `Buffer’s shared rate limit is exhausted. Try again in ${error.waitLabel}. The demo queue does not use quota.`
       : error instanceof Error
         ? error.message
         : "The scan failed.";
     return <ScanError message={message} />;
   }
 
-  // Stay on ?refresh=1. This segment has a loading.tsx, so the 200 shell is already
-  // sent and redirect() would be a 1s meta refresh. That second navigation races
-  // the next request, and Playwright then reports no document response.
+  // Do not redirect() to strip ?refresh=1. This segment has a loading.tsx, so the
+  // 200 shell is already sent and redirect() would be a 1s meta refresh. The
+  // dashboard removes the flag with history.replaceState after this render, so a
+  // reload reads the cache.
   return <Dashboard report={report} basePath="/dashboard" sessionNote={sessionNote(session.refreshToken)} />;
 }
 
