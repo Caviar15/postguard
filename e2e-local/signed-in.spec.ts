@@ -119,8 +119,8 @@ test("dashboard query abuse stays 200", async ({ page, context }) => {
   scenario("normal"); await signIn(context);
   for (const q of ["?days=", "?days=abc", "?days=999", "?org=%00", "?org=a&org=b", "?refresh=1&drafts=1&days=14", "?days=7&retried=1"]) {
     const res = await page.goto(`/dashboard${q}`);
-    // A redirect() can make Playwright report no document response even when the page rendered.
-    if (res) expect(res.status(), q).toBeLessThan(500);
+    expect(res, `${q} returned no document response`).toBeTruthy();
+    expect(res!.status(), q).toBeLessThan(500);
     await expect(page.getByText("Internal Server Error"), q).toHaveCount(0);
     await expect(page.getByRole("heading", { name: /Queue health|Connect Buffer/ }), q).toBeVisible();
   }

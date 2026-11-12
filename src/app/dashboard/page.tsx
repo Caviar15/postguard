@@ -66,7 +66,9 @@ export default async function DashboardPage({
     return <ScanError message={message} />;
   }
 
-  if (params.refresh === "1") redirect(nextPath);
+  // Stay on ?refresh=1. This segment has a loading.tsx, so the 200 shell is already
+  // sent and redirect() would be a 1s meta refresh. That second navigation races
+  // the next request, and Playwright then reports no document response.
   return <Dashboard report={report} basePath="/dashboard" sessionNote={sessionNote(session.refreshToken)} />;
 }
 
