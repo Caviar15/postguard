@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { READINESS_LABEL } from "@/domain/readiness";
+import { PRIORITY_LABEL, compareByPriority, compareByTime } from "@/domain/readiness";
 import { SEVERITY_LABEL, type AltSuggestion, type ScanReport, type Severity } from "@/domain/types";
 import { CropPreview } from "./CropPreview";
 import { Brand } from "./Brand";
@@ -11,6 +11,7 @@ import { formatDue, serviceLabel } from "./service";
 
 const SEVERITIES: Severity[] = ["blocker", "high", "medium", "low", "info"];
 const DAY_CHOICES = [3, 7, 14];
+type SortKey = "priority" | "time";
 
 type LiveSuggestion =
   | { state: "loading" }
@@ -27,6 +28,7 @@ export function Dashboard({
   sessionNote?: string | null;
 }) {
   const [filter, setFilter] = useState<Severity | "all">("all");
+  const [sort, setSort] = useState<SortKey>("priority");
   const [suggest, setSuggest] = useState(false);
   const [liveSuggestions, setLiveSuggestions] = useState<Record<string, LiveSuggestion>>({});
 
@@ -40,10 +42,21 @@ export function Dashboard({
   // reload, back/forward or a copied link reads the cache instead of spending another scan of the shared quota.
   useEffect(() => {
     const url = new URL(window.location.href);
+    const value = url.searchParams.get("sort");
+    if (value === "time" || value === "priority") setSort(value);
     if (url.searchParams.get("refresh") !== "1") return;
     url.searchParams.delete("refresh");
     window.history.replaceState(window.history.state, "", `${url.pathname}${url.search}${url.hash}`);
   }, [report]);
+
+  function chooseSort(next: SortKey) {
+    setSort(next);
+    const url = new URL(window.location.href);
+    url.searchParams.delete("refresh");
+    if (next === "priority") url.searchParams.delete("sort");
+    else url.searchParams.set("sort", next);
+    window.history.replaceState(window.history.state, "", `${url.pathname}${url.search}${url.hash}`);
+  }
 
   useEffect(() => {
     if (!suggest || report.mode !== "live") return;
@@ -91,9 +104,13 @@ export function Dashboard({
   }, [suggest, report]);
 
   const visibleCards = useMemo(() => {
-    if (filter === "all") return report.cards;
-    return report.cards.filter((card) => report.findings.some((finding) => finding.postId === card.id && finding.severity === filter));
-  }, [filter, report.cards, report.findings]);
+    const filtered =
+      filter === "all"
+        ? report.cards
+        : report.cards.filter((card) => report.findings.some((finding) => finding.postId === card.id && finding.severity === filter));
+    const compare = sort === "time" ? compareByTime : compareByPriority;
+    return [...filtered].sort(compare);
+  }, [filter, report.cards, report.findings, sort]);
 
   const axis = timelineZone(report.cards.map((card) => card.timeZone));
   const days = timelineDays(report.scannedAt, Math.min(report.windowDays, 7), axis.zone);
@@ -125,12 +142,12 @@ export function Dashboard({
         <p className="summary" data-testid="risk">{report.riskHeadline}</p>
         <div className="channel-row">
           {report.channels.map((channel) => (
-            <div key={channel.id} className={`channel-chip readiness-${channel.readiness}`}>
+            <div key={channel.id} className={`channel-chip priority-${channel.priority}`}>
               <strong>{channel.name}</strong>
               <span>
                 {serviceLabel(channel.service)} · {channel.postCount} {channel.postCount === 1 ? "post" : "posts"} · score {channel.score}
               </span>
-              <span className={`readiness readiness-${channel.readiness}`}>{READINESS_LABEL[channel.readiness]}</span>
+              <span className={`priority priority-${channel.priority}`}>{PRIORITY_LABEL[channel.priority]}</span>
               {channel.isQueuePaused ? <span className="flag">Paused</span> : null}
               {channel.isDisconnected ? <span className="flag">Disconnected</span> : null}
               {channel.isLocked ? <span className="flag">Locked</span> : null}
@@ -164,6 +181,11 @@ export function Dashboard({
             </Link>
             <Link href={`${query(report.windowDays)}&refresh=1`}>Scan again</Link>
           </div>
+          <div className="sort" role="group" aria-label="Sort posts">
+            <span className="fine">Sort</span>
+            <button type="button" className="button small secondary" aria-pressed={sort === "priority"} onClick={() => chooseSort("priority")}>Priority</button>
+            <button type="button" className="button small secondary" aria-pressed={sort === "time"} onClick={() => chooseSort("time")}>Publish time</button>
+          </div>
           <button type="button" className="button small secondary" aria-pressed={suggest} onClick={() => setSuggest((value) => !value)}>
             Suggest alt text
           </button>
@@ -184,8 +206,8 @@ export function Dashboard({
                   <span className="day-label">{dayLabel(day)}</span>
                   {posts.length === 0 ? <span className="day-empty">Clear</span> : null}
                   {posts.map((card) => (
-                    <a key={card.id} className={`dot dot-${card.readiness}`} href={`#post-${card.id}`}>
-                      <span className="sr-only">{READINESS_LABEL[card.readiness]} {card.excerpt}</span>
+                    <a key={card.id} className={`dot dot-${card.priority}`} href={`#post-${card.id}`}>
+                      <span className="sr-only">{PRIORITY_LABEL[card.priority]} {card.excerpt}</span>
                     </a>
                   ))}
                 </div>
@@ -195,8 +217,8 @@ export function Dashboard({
               <div className="day">
                 <span className="day-label">No time</span>
                 {undated.map((card) => (
-                  <a key={card.id} className={`dot dot-${card.readiness}`} href={`#post-${card.id}`}>
-                    <span className="sr-only">{card.status} {card.excerpt}</span>
+                  <a key={card.id} className={`dot dot-${card.priority}`} href={`#post-${card.id}`}>
+                    <span className="sr-only">{PRIORITY_LABEL[card.priority]} {card.excerpt}</span>
                   </a>
                 ))}
               </div>
@@ -232,11 +254,11 @@ export function Dashboard({
             const recorded = report.suggestions.find((item) => item.postId === card.id);
             const live = liveSuggestions[card.id];
             return (
-              <article key={card.id} id={`post-${card.id}`} className={`post-card readiness-${card.readiness}`} data-readiness={card.readiness}>
+              <article key={card.id} id={`post-${card.id}`} className={`post-card priority-${card.priority}`} data-priority={card.priority}>
                 {card.preview ? <CropPreview preview={card.preview} /> : <div className="crop-spacer" />}
                 <div>
                   <div className="meta">
-                    <span className={`readiness readiness-${card.readiness}`}>{READINESS_LABEL[card.readiness]}</span>
+                    <span className={`priority priority-${card.priority}`}>{PRIORITY_LABEL[card.priority]}</span>
                     <span>{serviceLabel(card.service)} · {card.channelName}</span>
                     <span>{formatDue(card.dueAt)}</span>
                     {card.status === "draft" ? <span className="pill">Draft</span> : null}

@@ -1,11 +1,21 @@
-import type { Channel, Finding, Post, Severity } from "./types";
+import type { Channel, Finding, Post, Priority, Severity } from "./types";
 
-export type Readiness = "ready" | "attention" | "fail";
+export type { Priority };
 
-export const READINESS_LABEL: Record<Readiness, string> = {
+export const PRIORITY_LABEL: Record<Priority, string> = {
+  blocker: "Blocker",
+  high: "High",
+  medium: "Medium",
+  low: "Low",
   ready: "Ready",
-  attention: "Needs attention",
-  fail: "Will fail",
+};
+
+const RANK: Record<Priority, number> = {
+  blocker: 0,
+  high: 1,
+  medium: 2,
+  low: 3,
+  ready: 4,
 };
 
 const PENALTY: Record<Severity, number> = {
@@ -16,18 +26,33 @@ const PENALTY: Record<Severity, number> = {
   info: 0,
 };
 
-export function postReadiness(post: Post, findings: Finding[], channel: Channel | undefined): Readiness {
-  const own = findings.filter((finding) => finding.postId === post.id);
-  if (own.some((finding) => finding.severity === "blocker") || channel?.isDisconnected || channel?.isLocked) {
-    return "fail";
+const RISKY: ReadonlySet<Priority> = new Set(["blocker", "high", "medium"]);
+
+function tighter(current: Priority, next: Priority): Priority {
+  return RANK[next] < RANK[current] ? next : current;
+}
+
+/** Highest finding on the post. Info does not raise it. A locked or disconnected channel is Blocker; a paused queue is at least High. */
+export function postPriority(post: Post, findings: Finding[], channel: Channel | undefined): Priority {
+  if (channel?.isDisconnected || channel?.isLocked) return "blocker";
+  let priority: Priority = "ready";
+  for (const finding of findings) {
+    if (finding.postId !== post.id || finding.severity === "info") continue;
+    priority = tighter(priority, finding.severity);
   }
-  if (
-    own.some((finding) => finding.severity === "high" || finding.severity === "medium") ||
-    channel?.isQueuePaused
-  ) {
-    return "attention";
-  }
-  return "ready";
+  if (channel?.isQueuePaused) priority = tighter(priority, "high");
+  return priority;
+}
+
+/** Worst post on the channel. The same channel flags apply when the channel has no posts. */
+export function channelPriority(
+  priorities: Priority[],
+  channel: Pick<Channel, "isDisconnected" | "isLocked" | "isQueuePaused"> | undefined,
+): Priority {
+  if (channel?.isDisconnected || channel?.isLocked) return "blocker";
+  let priority: Priority = priorities.reduce<Priority>((current, next) => tighter(current, next), "ready");
+  if (channel?.isQueuePaused) priority = tighter(priority, "high");
+  return priority;
 }
 
 export function channelScore(findings: Finding[]): number {
@@ -35,18 +60,12 @@ export function channelScore(findings: Finding[]): number {
   return Math.max(0, Math.min(100, score));
 }
 
-export function channelReadiness(score: number, posts: Readiness[]): Readiness {
-  if (posts.some((readiness) => readiness === "fail") || score < 40) return "fail";
-  if (posts.some((readiness) => readiness === "attention") || score < 90) return "attention";
-  return "ready";
-}
-
 export function riskHeadline(
-  posts: Array<{ dueAt: string | null; readiness: Readiness }>,
+  posts: Array<{ dueAt: string | null; priority: Priority }>,
   now: Date,
 ): string {
   const risky = posts
-    .filter((post) => post.readiness !== "ready" && post.dueAt)
+    .filter((post) => RISKY.has(post.priority) && post.dueAt)
     .map((post) => ({ time: new Date(post.dueAt ?? "").getTime() }))
     .filter((post) => !Number.isNaN(post.time))
     .sort((a, b) => a.time - b.time);
@@ -57,4 +76,19 @@ export function riskHeadline(
   if (hours < 36) return `Next risky post in ${hours} hour${hours === 1 ? "" : "s"}.`;
   const days = Math.round(hours / 24);
   return `Next risky post in ${days} day${days === 1 ? "" : "s"}.`;
+}
+
+/** Soonest publish time first. Posts with no time sort after every dated post. */
+export function compareByTime(a: { dueAt: string | null }, b: { dueAt: string | null }): number {
+  if (a.dueAt && b.dueAt) return a.dueAt < b.dueAt ? -1 : a.dueAt > b.dueAt ? 1 : 0;
+  if (a.dueAt) return -1;
+  if (b.dueAt) return 1;
+  return 0;
+}
+
+/** Blocker, then High, Medium, Low, Ready. Ties break by publish time. */
+export function compareByPriority(a: { priority: Priority; dueAt: string | null }, b: { priority: Priority; dueAt: string | null }): number {
+  const rank = RANK[a.priority] - RANK[b.priority];
+  if (rank !== 0) return rank;
+  return compareByTime(a, b);
 }

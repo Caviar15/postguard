@@ -16,6 +16,17 @@ test("demo mode shows the queue health report", async ({ page }) => {
   await expect(summary).toContainText("1 paused channel");
   await expect(page.getByTestId("quota")).toContainText("Demo mode");
   await expect(page.getByTestId("timeline")).toBeVisible();
+  await expect(page.getByText("Will fail")).toHaveCount(0);
+  await expect(page.getByText("Needs attention")).toHaveCount(0);
+  await expect(page.locator(".post-list article").first()).toHaveAttribute("data-priority", "blocker");
+  await expect(page.locator(".post-list .priority-ready").first()).toBeVisible();
+  await page.getByRole("button", { name: "Publish time" }).click();
+  await expect(page).toHaveURL(/sort=time/);
+  await expect(page).not.toHaveURL(/refresh=1/);
+  await expect(page.locator(".post-list article").first()).not.toHaveAttribute("data-priority", "blocker");
+  await page.getByRole("button", { name: "Priority", exact: true }).click();
+  await expect(page.locator(".post-list article").first()).toHaveAttribute("data-priority", "blocker");
+  await expect(page).not.toHaveURL(/[?&]sort=/);
   await expect(page.getByText(/hatched area is what gets cut off/i).first()).toBeVisible();
 
   const fix = page.getByRole("link", { name: "Fix in Buffer" }).first();
