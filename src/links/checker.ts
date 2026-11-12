@@ -18,6 +18,17 @@ export function clearLinkCache(): void {
   globalCache.clear();
 }
 
+/**
+ * Remember answers that will not change on their own. A timeout, a 5xx, a DNS
+ * hiccup or a refused bot check is not one of them, and caching it for a day
+ * would make "Scan again" repeat a transient failure.
+ */
+function worthCaching(status: LinkStatus): boolean {
+  if (status.outcome === "unverified") return false;
+  if (status.outcome === "dead") return status.status === 404 || status.status === 410;
+  return true;
+}
+
 function result(
   url: string,
   outcome: LinkStatus["outcome"],
@@ -29,6 +40,13 @@ function result(
   return { url, outcome, status, hops, finalUrl, detail };
 }
 
+class DeadlineError extends Error {
+  constructor() {
+    super("Timed out before the host responded.");
+    this.name = "TimeoutError";
+  }
+}
+
 async function fetchOnce(
   fetchImpl: typeof fetch,
   url: string,
@@ -36,9 +54,9 @@ async function fetchOnce(
   timeoutMs: number,
 ): Promise<Response> {
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  const timer = setTimeout(() => controller.abort(), Math.max(1, timeoutMs));
   try {
-    return await fetchImpl(url, {
+    const response = await fetchImpl(url, {
       method,
       redirect: "manual",
       signal: controller.signal,
@@ -47,14 +65,38 @@ async function fetchOnce(
         accept: "*/*",
       },
     });
+    // Only the status line and headers matter. Do not leave a body streaming on a held socket.
+    void response.body?.cancel().catch(() => undefined);
+    return response;
   } finally {
     clearTimeout(timer);
   }
 }
 
+/** A DNS lookup has no abort signal of its own, so race it against the remaining budget. */
+async function lookupWithin(lookup: LookupFn, ms: number): Promise<LookupFn> {
+  return async (hostname: string) => {
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    try {
+      return await Promise.race([
+        lookup(hostname),
+        new Promise<string[]>((_resolve, reject) => {
+          timer = setTimeout(() => reject(new DeadlineError()), Math.max(1, ms));
+        }),
+      ]);
+    } finally {
+      clearTimeout(timer);
+    }
+  };
+}
+
 function classify(original: string, current: string, status: number, hops: number): LinkStatus {
   if (status === 401 || status === 403 || status === 429 || status === 408) {
     return result(original, "unverified", status, hops, current, `HTTP ${status}. The host refused or throttled an automated check, so this is not marked dead.`);
+  }
+  // 5xx is an outage on their side, and 999 is LinkedIn's "no bots" answer. Neither proves the link is gone.
+  if (status >= 500 || status === 999) {
+    return result(original, "unverified", status, hops, current, `HTTP ${status}. The host errored or refused an automated check, so this is not marked dead.`);
   }
   if (status < 200 || status >= 300) {
     return result(original, "dead", status, hops, current, `HTTP ${status}.`);
@@ -93,23 +135,37 @@ export async function checkUrl(
   if (!isHttpUrl(url)) {
     return result(url, "dead", null, 0, null, "Not an http(s) URL.");
   }
+  return { ...(await checkUrlLive(url, fetchImpl, timeoutMs, lookupImpl)), checkedAt: new Date().toISOString() };
+}
 
+async function checkUrlLive(
+  url: string,
+  fetchImpl: typeof fetch,
+  timeoutMs: number,
+  lookupImpl: LookupFn,
+): Promise<LinkStatus> {
   let current = url;
   let hops = 0;
   const seen = new Set<string>([current]);
   let method: "HEAD" | "GET" = "HEAD";
+  // One URL gets two attempts' worth of time in total, however long the redirect chain is.
+  const deadline = Date.now() + timeoutMs * 2;
+  const remaining = () => deadline - Date.now();
 
   try {
     for (;;) {
+      if (remaining() <= 0) throw new DeadlineError();
       try {
-        await assertPublicHttpUrl(current, lookupImpl);
+        await assertPublicHttpUrl(current, await lookupWithin(lookupImpl, Math.min(timeoutMs, remaining())));
       } catch (error) {
         if (error instanceof UnsafeUrlError) {
-          return result(url, "unverified", null, hops, current, error.message);
+          const timedOut = error.cause instanceof DeadlineError;
+          return result(url, "unverified", null, hops, current, timedOut ? "Timed out resolving the host." : error.message);
         }
         throw error;
       }
-      const response = await fetchOnce(fetchImpl, current, method, timeoutMs);
+      if (remaining() <= 0) throw new DeadlineError();
+      const response = await fetchOnce(fetchImpl, current, method, Math.min(timeoutMs, remaining()));
       if (response.status >= 300 && response.status < 400) {
         const location = response.headers.get("location");
         if (!location) {
@@ -185,7 +241,7 @@ export async function checkMany(urls: string[], options: CheckOptions = {}): Pro
         if (i > 0 && delayMs > 0) await sleep(delayMs);
         const url = list[i] ?? "";
         const status = await checkUrl(url, fetchImpl, options.timeoutMs ?? 5_000, options.lookup ?? defaultLookup);
-        cache.set(url, { at: Date.now(), status });
+        if (worthCaching(status)) cache.set(url, { at: Date.now(), status });
         resultMap.set(url, status);
       }
     }

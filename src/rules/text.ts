@@ -1,8 +1,4 @@
-import { stripTrailingPunctuation } from "@/domain/urls";
-
-function urlPattern(): RegExp {
-  return /https?:\/\/[^\s<>"')\]]+/gi;
-}
+import { stripTrailingPunctuation, urlPattern } from "@/domain/urls";
 
 /** UTF-16 code units. This is `String.length` and what Buffer uses on most networks. */
 export function utf16Length(text: string): number {

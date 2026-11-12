@@ -2,6 +2,12 @@ import { createHash } from "node:crypto";
 
 export const REVIEW_MODEL = "google/gemini-2.5-flash-lite";
 export const REVIEW_HOURLY_CAP = 6;
+/**
+ * Per-session budgets reset on every new sign-in (the access token is the key), so
+ * they cannot stop someone who reconnects. This ceiling is for the whole instance.
+ */
+export const REVIEW_GLOBAL_HOURLY_CAP = 40;
+const GLOBAL_KEY = "__all__";
 
 export type ReviewResult =
   | { ok: true; altText: string; mismatch: string | null; cached: boolean }
@@ -32,7 +38,7 @@ export function reviewBudgetKey(secret: string): string {
   return createHash("sha256").update(secret).digest("hex").slice(0, 16);
 }
 
-export function takeReviewSlot(key: string, now = Date.now(), cap = REVIEW_HOURLY_CAP): boolean {
+function takeFrom(key: string, now: number, cap: number): boolean {
   const current = budgets.get(key);
   if (!current || now - current.windowStart > 60 * 60 * 1000) {
     budgets.set(key, { windowStart: now, count: 1 });
@@ -41,6 +47,16 @@ export function takeReviewSlot(key: string, now = Date.now(), cap = REVIEW_HOURL
   if (current.count >= cap) return false;
   current.count += 1;
   return true;
+}
+
+export function takeReviewSlot(key: string, now = Date.now(), cap = REVIEW_HOURLY_CAP): boolean {
+  if (!takeFrom(key, now, cap)) return false;
+  // Count the shared ceiling only after the session's own cap allowed it.
+  return takeFrom(GLOBAL_KEY, now, REVIEW_GLOBAL_HOURLY_CAP);
+}
+
+export function reviewCacheKey(imageUrl: string, caption: string, service: string): string {
+  return createHash("sha256").update(`${imageUrl}\n${service}\n${caption}`).digest("hex");
 }
 
 export function cachedReview(imageUrl: string, now = Date.now()): { altText: string; mismatch: string | null } | null {
@@ -71,7 +87,9 @@ export async function reviewImage(input: {
   service: string;
   budgetKey: string;
 }): Promise<ReviewResult> {
-  const cached = cachedReview(input.imageUrl);
+  // The mismatch note compares image and caption, so the caption and network are part of the key.
+  const cacheId = reviewCacheKey(input.imageUrl, input.caption, input.service);
+  const cached = cachedReview(cacheId);
   if (cached) return { ok: true, ...cached, cached: true };
   if (!takeReviewSlot(input.budgetKey)) {
     return {
@@ -84,6 +102,7 @@ export async function reviewImage(input: {
     const { generateText } = await import("ai");
     const { text } = await generateText({
       model: REVIEW_MODEL,
+      abortSignal: AbortSignal.timeout(20_000),
       maxOutputTokens: 180,
       temperature: 0.2,
       messages: [
@@ -100,7 +119,7 @@ export async function reviewImage(input: {
     if (!parsed) {
       return { ok: false, reason: "unavailable", message: "The model did not return a usable suggestion." };
     }
-    rememberReview(input.imageUrl, parsed);
+    rememberReview(cacheId, parsed);
     return { ok: true, ...parsed, cached: false };
   } catch {
     return {

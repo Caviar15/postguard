@@ -9,7 +9,11 @@ function authMessage(code: string): string {
   if (code === "not_configured") return "Buffer sign-in is not configured in this environment. Demo mode does not need an account.";
   if (code === "access_denied") return "Buffer sign-in was cancelled. Nothing was changed.";
   if (code === "state_mismatch") return "The sign-in attempt did not match the one this browser started. Connect again.";
-  return `Buffer sign-in did not finish (${code.replaceAll("_", " ").slice(0, 180)}). Demo mode does not need an account.`;
+  // Only short, code-shaped values are shown. Anything else could be attacker-written text on our domain.
+  if (/^[a-z][a-z0-9_]{0,39}$/.test(code)) {
+    return `Buffer sign-in did not finish (${code.replaceAll("_", " ")}). Demo mode does not need an account.`;
+  }
+  return "Buffer sign-in did not finish. Demo mode does not need an account.";
 }
 
 const CHECKS = [
@@ -36,6 +40,11 @@ export default async function HomePage({
           <Link href="/privacy">Privacy</Link>
           <Link className="button secondary small" href="/demo">Demo</Link>
         </div>
+        <p className="proof">
+          {configured
+            ? "Read-only · 2 scopes · live Buffer API"
+            : "Read-only · 2 scopes · demo uses sample data"}
+        </p>
       </header>
       <main id="main" className="wrap">
         {params.auth_error ? (
@@ -50,7 +59,8 @@ export default async function HomePage({
           </p>
           <div className="cta-row">
             <Link className="button" href="/demo">Try the demo queue</Link>
-            <Link className="button secondary" href="/api/auth/start">Connect Buffer</Link>
+            {/* A plain anchor: next/link would prefetch this route handler on page load, which sets the OAuth state cookie early and logs a CORS error. */}
+            <a className="button secondary" href="/api/auth/start">Connect Buffer</a>
           </div>
           <p className="fine">
             {configured

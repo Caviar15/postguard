@@ -29,6 +29,19 @@ describe("dead-link", () => {
     ]);
     expect(findings.map((finding) => finding.ruleId)).toContain("dead-link");
     expect(findings.find((finding) => finding.ruleId === "dead-link")?.severity).toBe("blocker");
+    expect(findings.find((finding) => finding.ruleId === "dead-link")?.detail).not.toContain("Re-checked");
+  });
+
+  it("says a link was re-checked just now only when this scan fetched it", () => {
+    const fresh = run([post], [makeChannel({ service: "twitter" })], [
+      { url, outcome: "dead", status: 404, hops: 0, finalUrl: url, detail: "HTTP 404.", checkedAt: NOW.toISOString() },
+    ]);
+    expect(fresh.find((finding) => finding.ruleId === "dead-link")?.detail).toContain("Re-checked just now.");
+    const cached = run([post], [makeChannel({ service: "twitter" })], [
+      { url, outcome: "dead", status: 404, hops: 0, finalUrl: url, detail: "HTTP 404.", checkedAt: new Date(NOW.getTime() - 60 * 60_000).toISOString() },
+    ]);
+    expect(cached.find((finding) => finding.ruleId === "dead-link")?.detail).toContain("Re-checked 1 h ago.");
+    expect(cached.find((finding) => finding.ruleId === "dead-link")?.detail).not.toContain("just now");
   });
 
   it("treats a long chain, a soft 404, and http as medium, and 403 as unverified", () => {
@@ -202,6 +215,7 @@ describe("aspect-ratio", () => {
     expect(aspect).toHaveLength(1);
     expect(aspect[0]?.advisory).toBe(true);
     expect(aspect[0]?.severity).toBe("high");
+    expect(aspect[0]?.detail).toContain("Instagram post");
   });
 });
 
@@ -289,8 +303,8 @@ describe("schedule, placeholders, and hashtags", () => {
     expect(findings.find((finding) => finding.ruleId === "placeholder")?.severity).toBe("high");
   });
 
-  it("flags more than 30 Instagram hashtags and a broken hash", () => {
-    const tags = Array.from({ length: 31 }, (_, index) => `#dye${index}`).join(" ");
+  it("flags more than 5 Instagram hashtags and a broken hash", () => {
+    const tags = Array.from({ length: 6 }, (_, index) => `#dye${index}`).join(" ");
     const findings = run(
       [makePost({ service: "instagram", text: tags }), makePost({ id: "broken", text: "See # this" })],
       [makeChannel({ service: "instagram" })],

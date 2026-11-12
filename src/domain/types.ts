@@ -85,6 +85,8 @@ export type LinkStatus = {
   hops: number;
   finalUrl: string | null;
   detail: string;
+  /** When a live HTTP check finished. Absent for fixtures and static risks. */
+  checkedAt?: string;
 };
 
 export type Severity = "blocker" | "high" | "medium" | "low" | "info";

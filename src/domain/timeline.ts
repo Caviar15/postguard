@@ -22,9 +22,19 @@ export function addCalendarDays(day: string, amount: number): string {
  * One axis for the week. When every post's channel reported the same timezone,
  * that zone is the axis. Otherwise the axis is UTC and the label says so.
  */
+export function isValidZone(zone: string): boolean {
+  try {
+    new Intl.DateTimeFormat("en-US", { timeZone: zone });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 export function timelineZone(timeZones: Array<string | null | undefined>): { zone: string; label: string } {
   if (timeZones.length === 0) return { zone: "UTC", label: "UTC" };
   const first = timeZones[0];
-  if (first && timeZones.every((zone) => zone === first)) return { zone: first, label: first };
+  // An unknown zone name would make Intl throw and take the whole dashboard down with it.
+  if (first && isValidZone(first) && timeZones.every((zone) => zone === first)) return { zone: first, label: first };
   return { zone: "UTC", label: "UTC" };
 }

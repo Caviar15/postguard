@@ -1,3 +1,4 @@
+import { extractUrls } from "@/domain/urls";
 import type { Finding, Post } from "@/domain/types";
 import type { RuleContext } from "./context";
 import { makeFinding } from "./context";
@@ -31,6 +32,13 @@ function jaccard(left: Set<string>, right: Set<string>): number {
   return union === 0 ? 0 : intersection / union;
 }
 
+/** True when both posts carry links and share none: "New episode! <ep 41>" and "New episode! <ep 42>" are different posts. */
+function linksDiffer(a: Set<string>, b: Set<string>): boolean {
+  if (a.size === 0 || b.size === 0) return false;
+  for (const url of b) if (a.has(url)) return false;
+  return true;
+}
+
 function hoursApart(left: string | null, right: string | null): number | null {
   if (!left || !right) return null;
   const a = new Date(left).getTime();
@@ -52,7 +60,7 @@ export function duplicates(ctx: RuleContext): Finding[] {
   const prepared = ctx.posts.map((post) => {
     const normalized = normalize(post.text);
     const tokens = words(normalized);
-    return { post, normalized, tokens, shingles: shingles(tokens) };
+    return { post, normalized, tokens, shingles: shingles(tokens), urls: new Set(extractUrls(post.text)) };
   });
 
   for (let i = 0; i < prepared.length; i += 1) {
@@ -65,9 +73,10 @@ export function duplicates(ctx: RuleContext): Finding[] {
       const inWindow = hours === null ? true : sameChannel ? hours <= 24 : hours <= 1;
       if (!inWindow) continue;
 
-      const exact = a.normalized.length >= 20 && a.normalized === b.normalized;
+      const differentLinks = linksDiffer(a.urls, b.urls);
+      const exact = !differentLinks && a.normalized.length >= 20 && a.normalized === b.normalized;
       const near =
-        !exact && a.tokens.length >= 8 && b.tokens.length >= 8 && jaccard(a.shingles, b.shingles) >= 0.9;
+        !exact && !differentLinks && a.tokens.length >= 8 && b.tokens.length >= 8 && jaccard(a.shingles, b.shingles) >= 0.9;
       const media = sharedMedia(a.post, b.post);
       if (!exact && !near && !media) continue;
 

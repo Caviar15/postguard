@@ -47,6 +47,7 @@ export async function scanLive(input: {
   const start = new Date(now.getTime() - LOOKBACK_MS).toISOString();
   const end = new Date(now.getTime() + input.windowDays * 24 * 60 * 60 * 1000).toISOString();
   let stoppedForQuota = false;
+  let unreadable = 0;
 
   const paged = await collectPages(
     async (after) => {
@@ -59,6 +60,7 @@ export async function scanLive(input: {
         ...(after ? { after } : {}),
       });
       const page = readPosts(data);
+      unreadable += page.skipped;
       if (shouldStopForQuota(client.quota)) stoppedForQuota = true;
       return { items: page.posts, hasNextPage: page.hasNextPage, endCursor: page.endCursor };
     },
@@ -81,6 +83,7 @@ export async function scanLive(input: {
         statuses,
       });
       const page = readPosts(data);
+      unreadable += page.skipped;
       undated = page.posts;
       if (page.hasNextPage) {
         notes.push("More than one page of posts has no publish time. Only the first page of those was read, to save quota.");
@@ -103,6 +106,7 @@ export async function scanLive(input: {
         first: PAGE_SIZE,
       });
       const page = readPosts(data);
+      unreadable += page.skipped;
       drafts = page.posts;
       if (page.hasNextPage) {
         notes.push("More than 50 drafts are in this organization. The newest page was checked.");
@@ -110,6 +114,10 @@ export async function scanLive(input: {
     } catch {
       notes.push("Drafts could not be loaded. Scheduled posts were still checked.");
     }
+  }
+
+  if (unreadable > 0) {
+    notes.push(`${unreadable} post${unreadable === 1 ? "" : "s"} came back from Buffer in a shape PostGuard could not read and ${unreadable === 1 ? "was" : "were"} left out of this scan.`);
   }
 
   const byId = new Map<string, Post>();

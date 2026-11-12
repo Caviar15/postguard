@@ -3,7 +3,8 @@ import type { RuleContext } from "./context";
 import { makeFinding } from "./context";
 
 const PATTERNS: { re: RegExp; label: string }[] = [
-  { re: /\bTODO\b/i, label: "TODO" },
+  // Upper case only, or "todo:" with a colon. The plain word "todo app" is ordinary copy.
+  { re: /\bTODO\b|\btodo\s*:/, label: "TODO" },
   { re: /\bTBD\b/i, label: "TBD" },
   { re: /\bFIXME\b/i, label: "FIXME" },
   { re: /lorem ipsum/i, label: "lorem ipsum" },
@@ -16,7 +17,9 @@ const PATTERNS: { re: RegExp; label: string }[] = [
 export function placeholders(ctx: RuleContext): Finding[] {
   const findings: Finding[] = [];
   for (const post of ctx.posts) {
-    const hits = PATTERNS.filter((pattern) => pattern.re.test(post.text)).map((pattern) => pattern.label);
+    // The caption, the first comment, and every later post of a thread all publish.
+    const copy = [post.text, post.firstComment ?? "", ...post.thread.map((item) => item.text)].join("\n");
+    const hits = PATTERNS.filter((pattern) => pattern.re.test(copy)).map((pattern) => pattern.label);
     if (hits.length === 0) continue;
     findings.push(
       makeFinding(ctx, {

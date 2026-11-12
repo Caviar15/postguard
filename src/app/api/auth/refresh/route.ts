@@ -1,15 +1,11 @@
 import { NextResponse } from "next/server";
 import { nextAuthStep } from "@/auth/flow";
+import { safeNext } from "@/auth/next-path";
 import { refreshAccessToken } from "@/auth/oauth";
 import { clearSession, readSession, writeSession } from "@/auth/session";
 import { getConfig } from "@/config";
 
 export const dynamic = "force-dynamic";
-
-function safeNext(value: string | null): string {
-  if (!value || !value.startsWith("/") || value.startsWith("//")) return "/dashboard";
-  return value;
-}
 
 function reconnect(request: Request): NextResponse {
   return NextResponse.redirect(new URL("/?auth_error=session_expired", request.url));

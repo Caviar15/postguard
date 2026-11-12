@@ -11,6 +11,11 @@ describe("demo report", () => {
     expect(report.headline).toBe("Next 7 days: 3 dead links, 1 duplicate, 2 missing alt text, 1 paused channel, 7 other risks.");
     expect(report.riskHeadline).toBe("A risky post is already overdue.");
     expect(report.includeDrafts).toBe(false);
+    expect(report.cards[0]?.id).toBe("post_ig_comments");
+    expect(report.cards[1]?.id).toBe("post_tw_todo");
+    const shop = report.findings.find((finding) => finding.postId === "post_ig_comments" && finding.ruleId === "dead-link");
+    expect(shop?.detail).toContain("HTTP 404.");
+    expect(shop?.detail).not.toContain("Re-checked");
     expect(report.cards.some((card) => card.preview?.cropped)).toBe(true);
     const withDrafts = await buildDemoReport(new Date("2026-11-10T12:00:00.000Z"), 7, true);
     expect(withDrafts.cards.some((card) => card.status === "draft")).toBe(true);

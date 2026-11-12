@@ -227,6 +227,21 @@ export const DEMO_SUGGESTIONS = [
   },
 ];
 
+/**
+ * The fixture's image hosts (cdn.northwind.example) do not exist, so the crop preview would
+ * show an empty frame. A generated picture with the same pixel size keeps the preview honest:
+ * the shaded bands are still the part a centered crop would cut off.
+ */
+export function placeholderImage(width: number, height: number, hue: number): string {
+  const svg =
+    `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${width} ${height}" preserveAspectRatio="xMidYMid slice">` +
+    `<defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="hsl(${hue} 45% 78%)"/><stop offset="1" stop-color="hsl(${(hue + 40) % 360} 40% 52%)"/></linearGradient></defs>` +
+    `<rect width="${width}" height="${height}" fill="url(#g)"/>` +
+    `<g fill="hsl(${hue} 30% 94% / 0.55)"><circle cx="${width * 0.3}" cy="${height * 0.32}" r="${Math.min(width, height) * 0.16}"/>` +
+    `<rect x="${width * 0.22}" y="${height * 0.55}" width="${width * 0.56}" height="${height * 0.22}" rx="${Math.min(width, height) * 0.03}"/></g></svg>`;
+  return `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`;
+}
+
 export async function buildDemoReport(now = new Date(), windowDays = 7, includeDrafts = false): Promise<ScanReport> {
   const start = now.getTime() - 24 * 60 * 60 * 1000;
   const end = now.getTime() + windowDays * 24 * 60 * 60 * 1000;
@@ -241,7 +256,7 @@ export async function buildDemoReport(now = new Date(), windowDays = 7, includeD
     fetchImpl: demoFetch,
     limit: 40,
   });
-  return assembleReport({
+  const report = assembleReport({
     posts,
     channels: DEMO_CHANNELS,
     linkResults: results,
@@ -261,9 +276,25 @@ export async function buildDemoReport(now = new Date(), windowDays = 7, includeD
         ? "Drafts are included. The unfinished Instagram draft is not scheduled yet."
         : "Drafts are hidden. Turn on Include drafts to check a post before it is scheduled.",
       "Alt-text suggestions in this demo are recorded examples. Nothing is sent to a model.",
+      "Images in the demo are generated placeholders with the real pixel sizes, because the example image hosts do not exist.",
       "The broken posts are invented: a dead shop link, a lookbook 404, an old blog 404, a signed S3 image, a paused Facebook queue, a caption that promises a first comment, and a LinkedIn post written in Unicode bold.",
     ],
   });
+  report.cards = report.cards.map((card, index) =>
+    card.preview?.src ? { ...card, preview: { ...card.preview, src: placeholderImage(card.preview.width, card.preview.height, (index * 47 + 20) % 360) } } : card,
+  );
+  // Lead with the dead shop link, then the TODO, so the first screen is a real failure.
+  // Due times stay as scheduled; only the demo's card order changes.
+  const lead = ["post_ig_comments", "post_tw_todo"];
+  report.cards.sort((a, b) => {
+    const ai = lead.indexOf(a.id);
+    const bi = lead.indexOf(b.id);
+    const ar = ai === -1 ? lead.length : ai;
+    const br = bi === -1 ? lead.length : bi;
+    if (ar !== br) return ar - br;
+    return (a.dueAt ?? "9999").localeCompare(b.dueAt ?? "9999");
+  });
+  return report;
 }
 
 const demoFetch: typeof fetch = async () => {

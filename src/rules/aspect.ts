@@ -1,3 +1,4 @@
+import { serviceLabel } from "@/components/service";
 import type { Finding } from "@/domain/types";
 import { cropForPost, ratioBand } from "./crop";
 import type { RuleContext } from "./context";
@@ -16,7 +17,7 @@ export function aspectRatio(ctx: RuleContext): Finding[] {
           ruleId: "aspect-ratio",
           severity: "high",
           title: "Image is outside the usual crop",
-          detail: `${asset.width}×${asset.height} is ${((asset.width ?? 1) / (asset.height ?? 1)).toFixed(2)}:1. ${post.service} ${post.postType ?? "post"} is usually ${band.label}. The preview shows the centered crop. Best-effort: Buffer does not publish an aspect-ratio rule, and a zero dimension is ignored.`,
+          detail: `${asset.width}×${asset.height} is ${((asset.width ?? 1) / (asset.height ?? 1)).toFixed(2)}:1. ${serviceLabel(post.service)} ${post.postType ?? "post"} is usually ${band.label}. The preview shows the centered crop. Best-effort: Buffer does not publish an aspect-ratio rule, and a zero dimension is ignored.`,
           post,
           channelId: post.channelId,
           key: `asset-${index}`,

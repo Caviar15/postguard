@@ -97,18 +97,37 @@ export function Dashboard({
         <div className="top-actions">
           <span className="pill">{report.mode === "demo" ? "Demo queue" : report.organization.name}</span>
           {report.mode === "demo" ? (
-            <Link className="button secondary small" href="/api/auth/start">Connect Buffer</Link>
+            <a className="button secondary small" href="/api/auth/start">Connect Buffer</a>
           ) : (
             <form action="/api/auth/logout" method="post">
               <button className="button secondary small" type="submit">Sign out</button>
             </form>
           )}
         </div>
+        <p className="proof">
+          {report.mode === "demo"
+            ? "Read-only · 2 scopes · sample data, not a live queue"
+            : "Read-only · 2 scopes · live Buffer API"}
+        </p>
       </header>
       <main id="main" className="wrap">
         <p className="kicker">{report.organization.name}</p>
         <h1>Queue health</h1>
         <p className="summary" data-testid="risk">{report.riskHeadline}</p>
+        <div className="channel-row">
+          {report.channels.map((channel) => (
+            <div key={channel.id} className={`channel-chip readiness-${channel.readiness}`}>
+              <strong>{channel.name}</strong>
+              <span>
+                {serviceLabel(channel.service)} · {channel.postCount} {channel.postCount === 1 ? "post" : "posts"} · score {channel.score}
+              </span>
+              <span className={`readiness readiness-${channel.readiness}`}>{READINESS_LABEL[channel.readiness]}</span>
+              {channel.isQueuePaused ? <span className="flag">Paused</span> : null}
+              {channel.isDisconnected ? <span className="flag">Disconnected</span> : null}
+              {channel.isLocked ? <span className="flag">Locked</span> : null}
+            </div>
+          ))}
+        </div>
         <p className="lede" data-testid="summary">{report.headline}</p>
         {sessionNote ? <p className="banner">{sessionNote}</p> : null}
         <div className="stats" aria-label="Findings by severity">
@@ -145,20 +164,6 @@ export function Dashboard({
             Suggestions are advisory. PostGuard does not edit the post. Demo suggestions are recorded examples and do not call a model.
           </p>
         ) : null}
-        <div className="channel-row">
-          {report.channels.map((channel) => (
-            <div key={channel.id} className={`channel-chip readiness-${channel.readiness}`}>
-              <strong>{channel.name}</strong>
-              <span>
-                {serviceLabel(channel.service)} · {channel.postCount} posts · score {channel.score}
-              </span>
-              <span className={`readiness readiness-${channel.readiness}`}>{READINESS_LABEL[channel.readiness]}</span>
-              {channel.isQueuePaused ? <span className="flag">Paused</span> : null}
-              {channel.isDisconnected ? <span className="flag">Disconnected</span> : null}
-              {channel.isLocked ? <span className="flag">Locked</span> : null}
-            </div>
-          ))}
-        </div>
         <section aria-labelledby="timeline-heading">
           <h2 id="timeline-heading">Upcoming</h2>
           <p className="fine">Days in {axis.label}</p>
@@ -241,6 +246,7 @@ export function Dashboard({
                     <Suggestion
                       recorded={recorded}
                       live={live}
+                      hasImage={Boolean(card.preview?.src)}
                       demo={report.mode === "demo"}
                     />
                   ) : null}
@@ -274,10 +280,12 @@ export function Dashboard({
 function Suggestion({
   recorded,
   live,
+  hasImage,
   demo,
 }: {
   recorded: AltSuggestion | undefined;
   live: LiveSuggestion | undefined;
+  hasImage: boolean;
   demo: boolean;
 }) {
   const altText = recorded?.altText ?? (live?.state === "ready" ? live.altText : null);
@@ -296,8 +304,11 @@ function Suggestion({
         </>
       ) : notice ? (
         <p>{notice}</p>
+      ) : !recorded && !hasImage && !demo ? (
+        // No request is ever sent for a post whose image has no usable preview, so do not promise one.
+        <p>Buffer did not return a preview image for this post, so there is nothing to describe.</p>
       ) : (
-        <p>{demo ? "No recorded suggestion for this image." : "Asking the model…"}</p>
+        <p role="status">{demo ? "No recorded suggestion for this image." : "Asking the model…"}</p>
       )}
     </div>
   );

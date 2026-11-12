@@ -97,7 +97,7 @@ The Experimental `configuration` query is not called. Limits come from the [char
 | `publishing-error` | High | `Post.error.message` |
 | `notification-post` | Info | `schedulingType: notification` |
 | `placeholder` | High | `TODO`, `TBD`, `FIXME`, lorem, `[link]`, `{{…}}`, `<name>`, `XXX` |
-| `hashtags` | High over 30 on Instagram (advisory). Low for a broken `#` | Instagram’s cap is not a Buffer validation rule, so it stays a warning |
+| `hashtags` | High over 5 on Instagram. Low for a broken `#` | Buffer refuses an Instagram post with more than 5 hashtags |
 
 ## Verified against the published schema, and what is still assumed
 
@@ -139,7 +139,12 @@ npm run lint
 npm test          # unit tests, Vitest
 npm run typecheck
 npm run test:e2e  # Playwright plus axe on the demo, home, privacy, and testing pages
+npm run build && npm run test:e2e:signed-in
+# Hits the live site. Not part of CI.
+PROD_URL=https://postguard-rho.vercel.app npm run test:e2e:prod
 ```
+
+`test:e2e:signed-in` starts the production build with a mocked Buffer API and walks the signed-in dashboard (empty queue, rate limit, expired session, a large queue). `test:e2e:prod` is the same kind of check against a deployed URL, including production, so CI does not run it.
 
 CI (`.github/workflows/ci.yml`) runs lint, typecheck, unit tests, a production build, and the browser pass. The page [How PostGuard is tested](src/app/testing/page.tsx) is the same account, written for a reader.
 

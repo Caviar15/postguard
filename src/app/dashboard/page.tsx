@@ -66,7 +66,9 @@ export default async function DashboardPage({
     return <ScanError message={message} />;
   }
 
-  if (params.refresh === "1") redirect(nextPath);
+  // Stay on ?refresh=1. This segment has a loading.tsx, so the 200 shell is already
+  // sent and redirect() would be a 1s meta refresh. That second navigation races
+  // the next request, and Playwright then reports no document response.
   return <Dashboard report={report} basePath="/dashboard" sessionNote={sessionNote(session.refreshToken)} />;
 }
 
@@ -98,7 +100,7 @@ function ConnectPrompt({ expired }: { expired: boolean }) {
               : "This deployment has no Buffer client id yet. Use the demo queue, or set the env vars in the README."}
         </p>
         <div className="cta-row">
-          <Link className="button" href="/api/auth/start">Connect Buffer</Link>
+          <a className="button" href="/api/auth/start">Connect Buffer</a>
           <Link className="button secondary" href="/demo">Open the demo</Link>
         </div>
       </main>

@@ -23,8 +23,8 @@ blocked.addSubnet("fe80::", 10, "ipv6");
 blocked.addSubnet("ff00::", 8, "ipv6");
 
 export class UnsafeUrlError extends Error {
-  constructor(message: string) {
-    super(message);
+  constructor(message: string, options?: { cause?: unknown }) {
+    super(message, options);
     this.name = "UnsafeUrlError";
   }
 }
@@ -74,8 +74,8 @@ export async function assertPublicHttpUrl(raw: string, lookupImpl: LookupFn = de
   let addresses: string[];
   try {
     addresses = await lookupImpl(hostname);
-  } catch {
-    throw new UnsafeUrlError("The host did not resolve.");
+  } catch (cause) {
+    throw new UnsafeUrlError("The host did not resolve.", { cause });
   }
   if (addresses.length === 0) throw new UnsafeUrlError("The host did not resolve.");
   if (addresses.some((address) => isBlockedAddress(address))) {
