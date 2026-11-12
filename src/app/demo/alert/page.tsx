@@ -83,7 +83,7 @@ export default async function DemoAlertPage({ searchParams }: { searchParams: Pr
         )}
 
         <p className="fine alert-foot">
-          Sent through Resend once a day in the early morning (the 06:00 UTC hour, 07:00 to 09:00 in Amsterdam). Read-only toward Buffer. <Link href="/alerts/setup">Set this up for your own account</Link>.
+          Sent through Resend once a day in the early morning (the 06:00 UTC hour, 07:00 to 09:00 in Amsterdam). Read-only toward Buffer. Alert emails are an optional feature that only the owner of a deployment can switch on; signing in to the dashboard does not turn them on, and this page sends nothing.
         </p>
       </main>
     </>

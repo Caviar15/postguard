@@ -41,8 +41,8 @@ export default function PrivacyPage() {
           <p style={{ marginTop: 12 }}>
             Scan results are kept in memory on the server for about 10 minutes. Reloading the dashboard uses that
             copy and does not call Buffer again. Scan again bypasses the cache. Once the new result is on screen, the
-            address bar drops the refresh flag, so a later reload uses the saved result. Results are not written to a
-            database. Demo mode uses a built-in fixture and does not call Buffer.
+            address bar drops the refresh flag, so a later reload uses the saved result. The dashboard does not write
+            scan results to a database (the owner-only alert feature above keeps only the markers it lists). Demo mode uses a built-in fixture and does not call Buffer.
           </p>
           <p style={{ marginTop: 12 }}>
             If you press <em>Suggest alt text</em>, the URL of that post&rsquo;s image and its caption are sent to a vision

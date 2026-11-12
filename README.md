@@ -169,7 +169,7 @@ This is a separate Buffer sign-in from the dashboard on purpose. Buffer refresh 
 
 **Try it.** `curl -H "Authorization: Bearer $CRON_SECRET" "https://YOUR_PROJECT.vercel.app/api/cron/alerts?dryRun=1"` scans and returns the rendered email without claiming or sending anything.
 
-**Not done yet.** Vercel does not retry a failed cron, so a failed run (for example a rejected Buffer token) shows up as a 5xx in the Vercel logs but does not email you. On Pro the schedule can be hourly (set `cadenceHours` in `src/alerts/deps.ts` to match), and an extra run about an hour before each post goes out would catch a link that dies right before publishing. Only the first Buffer organization is scanned. Other channels (Slack, Telegram) fit behind the same message builder.
+**Not done yet.** Vercel does not retry a failed cron, so a failed run (for example a rejected Buffer token) shows up as a 5xx in the Vercel logs but does not email you. A paid Vercel plan allows more than one run a day (set `cadenceHours` in `src/alerts/deps.ts` to match); this deployment checks once a day, so a link that dies a few hours before publishing can be missed. Only the first Buffer organization is scanned. Other channels (Slack, Telegram) fit behind the same message builder.
 
 ## Tests
 
