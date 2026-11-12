@@ -103,7 +103,7 @@ export function assembleReport(input: {
     channels: input.channels.map((channel) => {
       const channelFindings = findings.filter((finding) => finding.channelId === channel.id);
       const priorities = cards.filter((card) => card.channelId === channel.id).map((card) => card.priority);
-      const score = channelScore(channelFindings);
+      const score = channelScore(channelFindings, channel);
       return {
         id: channel.id,
         name: channel.displayName || channel.name,

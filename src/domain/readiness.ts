@@ -73,8 +73,14 @@ export function channelPriority(
   return priority;
 }
 
-export function channelScore(findings: Finding[]): number {
-  const score = findings.reduce((total, finding) => total - PENALTY[finding.severity], 100);
+/**
+ * 100 minus a penalty per finding. A paused queue is a channel flag, not a post finding, but it
+ * labels the channel High, so it costs the High penalty here too. Disconnected and locked channels
+ * already carry blocker findings, so they are not charged twice.
+ */
+export function channelScore(findings: Finding[], channel?: Pick<Channel, "isQueuePaused">): number {
+  const flagPenalty = channel?.isQueuePaused ? PENALTY.high : 0;
+  const score = findings.reduce((total, finding) => total - PENALTY[finding.severity], 100 - flagPenalty);
   return Math.max(0, Math.min(100, score));
 }
 
