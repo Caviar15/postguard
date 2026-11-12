@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { exchangeAuthorizationCode } from "@/auth/oauth";
-import { clearOauthHandoff, readOauthHandoff, writeSession, writeWatchGrant } from "@/auth/session";
+import { storeFromEnv } from "@/alerts/deps";
+import { clearAlertSetup, clearOauthHandoff, isAlertSetupArmed, readOauthHandoff, writeSession } from "@/auth/session";
 import { getConfig, redirectUriFor } from "@/config";
 
 export const dynamic = "force-dynamic";
@@ -33,8 +34,17 @@ export async function GET(request: Request) {
       redirectUri: redirectUriFor(request, config),
     });
     if (handoff.watch) {
-      await writeWatchGrant(tokens);
-      return NextResponse.redirect(new URL("/alerts/setup", request.url));
+      // A separate Buffer grant for background alerts, saved encrypted on the server. It is not a browser session.
+      const armed = await isAlertSetupArmed();
+      await clearAlertSetup();
+      if (!armed) return NextResponse.redirect(new URL("/alerts/setup?problem=code", request.url));
+      if (!tokens.refreshToken) return NextResponse.redirect(new URL("/alerts/setup?problem=refresh", request.url));
+      try {
+        await storeFromEnv().store.enable({ accessToken: tokens.accessToken, refreshToken: tokens.refreshToken, expiresAt: tokens.expiresAt });
+      } catch {
+        return NextResponse.redirect(new URL("/alerts/setup?problem=store", request.url));
+      }
+      return NextResponse.redirect(new URL("/alerts/setup?on=1", request.url));
     }
     await writeSession(tokens);
     return NextResponse.redirect(new URL("/dashboard", request.url));

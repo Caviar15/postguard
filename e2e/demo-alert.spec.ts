@@ -8,24 +8,36 @@ test("the demo links to an alert email preview that is clearly sample data", asy
   await expect(page.getByTestId("alert-subject")).toContainText("PostGuard:");
   const body = page.getByTestId("alert-body");
   await expect(body).toContainText("Preview with sample data");
+  await expect(body).toContainText("roughly the next 27 hours");
   await expect(body.getByRole("link", { name: "Fix in Buffer" }).first()).toBeVisible();
-  await expect(body.getByRole("link", { name: "Open PostGuard" })).toHaveAttribute("href", "/demo");
+  await expect(body.getByRole("link", { name: "See it in PostGuard" }).first()).toHaveAttribute("href", /#post-/);
   await expect(body).toContainText("Blocker");
+  await expect(body.getByRole("link", { name: "Stop these emails" })).toBeVisible();
   // Only Blocker and High problems are in the email.
   await expect(body).not.toContainText("Medium");
 });
 
 test("the alert preview follows ?platform= and keeps it when switching", async ({ page }) => {
-  await page.goto("/demo?platform=tiktok");
+  await page.goto("/demo?platform=instagram");
   await page.getByRole("link", { name: "Preview alert email" }).click();
-  await expect(page).toHaveURL(/\/demo\/alert\?platform=tiktok/);
-  await expect(page.getByRole("link", { name: "TikTok", exact: true })).toHaveAttribute("aria-current", "page");
-  await expect(page.getByTestId("alert-body")).toContainText("TikTok");
-  await page.getByRole("link", { name: "X", exact: true }).click();
-  await expect(page).toHaveURL(/platform=x/);
-  await expect(page.getByTestId("alert-body")).toContainText("Northwind on X");
+  await expect(page).toHaveURL(/\/demo\/alert\?platform=instagram/);
+  await expect(page.getByRole("link", { name: "Instagram", exact: true })).toHaveAttribute("aria-current", "page");
+  await expect(page.getByTestId("alert-body")).toContainText("Instagram");
   await page.getByRole("link", { name: "Back to the demo queue" }).click();
-  await expect(page).toHaveURL(/\/demo\?platform=x/);
+  await expect(page).toHaveURL(/\/demo\?platform=instagram/);
+});
+
+test("a queue with nothing risky in the next 27 hours says no email would be sent", async ({ page }) => {
+  const platforms = ["tiktok", "x", "linkedin", "facebook"];
+  for (const platform of platforms) {
+    await page.goto(`/demo/alert?platform=${platform}`);
+    const empty = await page.getByTestId("alert-empty").count();
+    const preview = await page.getByTestId("alert-preview").count();
+    expect(empty + preview, platform).toBe(1);
+    if (empty) {
+      await expect(page.getByTestId("alert-empty")).toContainText("No email would be sent");
+    }
+  }
 });
 
 for (const width of [1280, 375]) {
@@ -40,13 +52,17 @@ for (const width of [1280, 375]) {
   });
 }
 
-test("the cron endpoint is closed without the secret", async ({ request }) => {
-  const res = await request.get("/api/cron/check");
-  expect(res.status()).toBe(401);
+test("the cron endpoint and the unsubscribe link are closed to strangers", async ({ request }) => {
+  expect([401, 500]).toContain((await request.get("/api/cron/alerts")).status());
+  const unsub = await request.get("/api/alerts/unsubscribe?token=bogus");
+  expect(unsub.status()).toBeLessThan(500);
+  expect(await unsub.text()).toContain('method="post"');
 });
 
-test("alert setup page explains the one-time sign-in and shows no token by itself", async ({ page }) => {
+test("alert setup asks for the setup code and shows no token", async ({ page }) => {
   await page.goto("/alerts/setup");
   await expect(page.getByRole("heading", { name: "Alerts that come to you." })).toBeVisible();
-  await expect(page.getByTestId("token-value")).toHaveCount(0);
+  await expect(page.getByLabel(/Setup code/)).toBeVisible();
+  await expect(page.getByTestId("setup-checks")).toContainText("CRON_SECRET");
+  await expect(page.locator("body")).not.toContainText("refresh_token");
 });

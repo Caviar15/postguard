@@ -35,7 +35,7 @@ Open http://localhost:3000 and choose **Try the demo queue**. Demo mode replays 
 | `BUFFER_REDIRECT_URI` | Yes, in production | Must match the URI registered above. Defaults to the request origin + `/api/auth/callback` when unset. |
 | `SESSION_SECRET` | For live scans | Encrypts the refresh-token cookie. `node -e "console.log(require('crypto').randomBytes(32).toString('base64url'))"` |
 | `POSTGUARD_WINDOW_DAYS` | No | Default window (7). The dashboard can switch to 3 or 14. |
-| `APP_URL` | No | Public origin, informational. |
+| `APP_URL` | No | Public origin. Also the origin of every link in an alert email (see Alerts). |
 
 Then `npm run dev`, and use **Connect Buffer**. The flow is OAuth 2.0 authorization code with PKCE (`S256`):
 
@@ -55,7 +55,7 @@ Vercel is the straightforward host. Hobby is enough for the demo and a light jud
 4. Register that exact redirect URI, and `https://YOUR_PROJECT.vercel.app/privacy`, on the Buffer app client.
 5. Open the deployment. Confirm the demo queue, then connect a Buffer account and run one scan.
 
-No database is required for the dashboard. (Background alerts need a small token store, see Alerts.) Scan results are cached in memory for 10 minutes so a reload does not spend the quota again. Use **Scan again** to bypass the cache.
+No database is required for the dashboard. (Alerts need Redis, see Alerts.) Scan results are cached in memory for 10 minutes so a reload does not spend the quota again. Use **Scan again** to bypass the cache.
 
 ## What a scan does
 
@@ -136,25 +136,40 @@ If the button says the gateway is unavailable, enable AI Gateway on the Vercel p
 
 ## Alerts
 
-Nobody opens a dashboard every day for posts they already scheduled, so PostGuard can come to you. `vercel.json` runs `GET /api/cron/check` once a day at 06:00 UTC. It scans the owner's next 7 days with the same checks as the dashboard and collects only **Blocker** and **High** findings. If there are none, nothing is sent. If there are, it sends one email listing each risky post: channel, publish time in Europe/Amsterdam, a caption snippet, the problems, and a **Fix in Buffer** link, plus a link to the dashboard. It is still read-only: the same two scopes, and the job never creates, edits, schedules or publishes anything.
+Nobody opens a dashboard every day for posts they already scheduled, so the owner of a deployment can turn on an alert email. `vercel.json` calls `GET /api/cron/alerts` once a day at 06:00 UTC. Vercel Hobby only allows daily crons and fires one anywhere within its hour, so the email lands between 07:00 and 09:00 in Amsterdam.
+
+What a run does:
+
+- **Looks about 27 hours ahead**, not 7 days: 24 h to the next run, plus 1 h because the cron can fire late, plus 2 h so there is time to act. A post that publishes in that window could be missed by the next run, so it is the one worth emailing about. Posts further out are re-checked on later runs. The email says "roughly the next 27 hours" and that a post added after the check may not be looked at before it publishes. It is not live monitoring.
+- **Triggers on the post's priority label** on the dashboard (Blocker or High), not on raw finding severity. A post in a paused queue is High on its card while its finding is Info, and it alerts.
+- **Sends nothing when there is nothing to say.** No all-clear email. If the scan was incomplete (quota stop, a page of posts not read), an email that is sent says so.
+- **Sends one email per run** listing each post: channel, publish time in the owner's zone (`ALERT_TIME_ZONE`, default Europe/Amsterdam), the problems, a link to the exact post in Buffer and to its card in PostGuard (`/dashboard#post-<id>`).
+- **Never double-sends.** The run takes a Redis lock. Each post + finding is claimed with `SET NX` (3-day TTL) before sending, the claims are released if the send fails, and the Resend `Idempotency-Key` is the same on every retry of the same alert.
+- **Unsubscribe.** Every email carries `List-Unsubscribe` and `List-Unsubscribe-Post` (RFC 8058). A GET of the link only shows a confirmation, a POST unsubscribes and deletes the stored Buffer token.
+- **Read-only.** Same two scopes. It reads the queue through the same scan as the dashboard and never creates, edits, schedules or publishes anything.
 
 See it without an account: [`/demo/alert`](src/app/demo/alert/page.tsx) renders the email for the demo queue (`?platform=` is respected), linked from `/demo` as **Preview alert email**.
 
+### Turning it on (owner only, once)
+
+1. In Vercel, add an Upstash Redis database from the Marketplace. It sets `KV_REST_API_URL` and `KV_REST_API_TOKEN`.
+2. Set the variables below and redeploy.
+3. Open `/alerts/setup`, type your `CRON_SECRET` as the setup code, and choose **Connect Buffer for alerts**.
+
+This is a separate Buffer sign-in from the dashboard on purpose. Buffer refresh tokens rotate: every refresh returns a new one and invalidates the one you sent, and reusing an old one revokes the whole grant ([Authentication guide](https://developers.buffer.com/guides/authentication.html)). A refresh token shared with a browser session would be spent by whichever side refreshed first. The alert sign-in's refresh token is saved on the server, encrypted with `SESSION_SECRET`. Each run refreshes it single-flight (one lock, the grant is re-read after the lock is taken), saves the replacement before using the access token, and never retries a rejected token. No token is ever shown, logged or put in a URL. Turning alerts off on the setup page, or unsubscribing, deletes it.
+
 | Variable | Purpose |
 |---|---|
-| `CRON_SECRET` | Vercel Cron sends it as `Authorization: Bearer …`. Without it the endpoint answers 401 to everyone. |
-| `BUFFER_REFRESH_TOKEN` | Owner-only watch mode. Obtain it once at `/alerts/setup` (see below). |
-| `RESEND_API_KEY`, `ALERT_EMAIL_TO` | Email through the [Resend](https://resend.com) REST API. `ALERT_EMAIL_TO` may be comma-separated. |
-| `ALERT_EMAIL_FROM` | Optional. Default `PostGuard <onboarding@resend.dev>`, which can only send to the email address of your Resend account. |
-| `KV_REST_API_URL`, `KV_REST_API_TOKEN` | Upstash Redis (Vercel Marketplace) that keeps the newest refresh token. `UPSTASH_REDIS_REST_URL` / `_TOKEN` also work. |
+| `CRON_SECRET` | At least 16 characters. Vercel Cron sends it as `Authorization: Bearer …`. If it is unset the route answers 500, and a wrong header 401, so `Bearer undefined` never works. It is also the setup code. |
+| `KV_REST_API_URL`, `KV_REST_API_TOKEN` | Upstash Redis (`UPSTASH_REDIS_REST_URL` / `_TOKEN` also work). Holds the encrypted grant, the run lock and the dedupe claims. |
+| `RESEND_API_KEY`, `ALERT_EMAIL_TO` | Email through the [Resend](https://resend.com) REST API, one recipient. |
+| `ALERT_EMAIL_FROM` | Optional. Default `PostGuard <onboarding@resend.dev>`, which can only send to the email address of your Resend account. Verify a domain to send elsewhere. |
+| `ALERT_TIME_ZONE` | Optional. IANA zone for the times in the email. Default `Europe/Amsterdam`. |
+| `APP_URL` | The public origin used in every link in the email. Falls back to `VERCEL_PROJECT_PRODUCTION_URL`. |
 
-**Why a store is needed.** Buffer refresh tokens rotate: every refresh returns a new one and invalidates the one you sent, and reusing an old one revokes the whole grant ([Authentication guide](https://developers.buffer.com/guides/authentication.html)). An env var cannot be rewritten by the running job, so with `BUFFER_REFRESH_TOKEN` alone the job works exactly once. With the Upstash store configured, `BUFFER_REFRESH_TOKEN` is only the seed: each run reads the newest token from the store, refreshes, saves the replacement (encrypted with `SESSION_SECRET`) before using the access token, and a failed refresh is never retried. Putting a new value in `BUFFER_REFRESH_TOKEN` starts a new chain. Storage sits behind the `WatchTokenStore` interface in `src/alerts/token-store.ts`, so Vercel Blob or another store can replace Upstash.
+**Try it.** `curl -H "Authorization: Bearer $CRON_SECRET" "https://YOUR_PROJECT.vercel.app/api/cron/alerts?dryRun=1"` scans and returns the rendered email without claiming or sending anything.
 
-**Getting the token once.** Open `/alerts/setup`, choose **Connect Buffer for alerts**, and sign in. It is a separate sign-in from the dashboard on purpose: a token shared with the browser session would be spent by whichever refreshed first. The token is shown masked with Show and Copy, kept in a 15-minute httpOnly cookie, and never logged. Paste it into `BUFFER_REFRESH_TOKEN` in Vercel and redeploy.
-
-**Try it.** `curl -H "Authorization: Bearer $CRON_SECRET" "https://YOUR_PROJECT.vercel.app/api/cron/check?dryRun=1"` returns the rendered email and counts without sending. Add `&source=demo` to run the same pipeline on the demo queue with no Buffer credentials. If the email variables are missing, the endpoint returns the same output with `sent: false` and the reason.
-
-**Next steps.** Vercel Hobby only allows daily crons. On Pro the schedule can be hourly, and an extra run about an hour before each post goes out would catch a link that dies right before publishing. Other channels (Slack, Telegram) fit behind the same alert builder. A failed refresh is reported in the JSON and the Vercel log but does not email yet.
+**Not done yet.** Vercel does not retry a failed cron, so a failed run (for example a rejected Buffer token) shows up as a 5xx in the Vercel logs but does not email you. On Pro the schedule can be hourly (set `cadenceHours` in `src/alerts/deps.ts` to match), and an extra run about an hour before each post goes out would catch a link that dies right before publishing. Only the first Buffer organization is scanned. Other channels (Slack, Telegram) fit behind the same message builder.
 
 ## Tests
 
@@ -186,7 +201,7 @@ src/rules       One module per check. Pure functions.
 src/links       HEAD/GET checker and signed-URL patterns
 src/scan        Live scan and the 10-minute cache
 src/demo        Northwind fixture
-src/alerts      Daily check: alert email builder, Resend sender, watch-token store
+src/alerts      Daily check: selection, email, run lock and dedupe, Redis store, single-flight token refresh
 src/ai          Opt-in alt-text suggestions and the hourly cap
 src/app         Landing, demo, dashboard, privacy, testing, OAuth routes
 ```

@@ -492,18 +492,18 @@ code { font-size: 0.9em; background: #f6f1e7; padding: 1px 5px; border-radius: 4
 .alert-foot { margin: 0 0 32px; }
 .preview-link { margin: 0 0 14px; }
 .setup-card { margin: 0 0 14px; max-width: 46rem; }
-.setup-card p + .token-box, .setup-card p + .setup-checks { margin-top: 12px; }
-.token-box { display: grid; gap: 10px; margin: 12px 0; }
-.token-value {
-  display: block;
-  padding: 12px 14px;
+.setup-form { display: grid; gap: 8px; margin-top: 14px; max-width: 28rem; }
+.setup-form label { font-weight: 600; }
+.setup-form input {
+  font: inherit;
+  padding: 10px 12px;
   border: 1px solid var(--line);
   border-radius: 12px;
   background: #fff;
-  font-size: 0.9rem;
-  overflow-wrap: anywhere;
-  word-break: break-all;
+  color: var(--ink);
 }
+.setup-form .cta-row { margin: 0; }
+button.button:disabled { opacity: 0.5; cursor: not-allowed; }
 .setup-checks { list-style: none; padding: 0; margin: 0 0 12px; display: grid; gap: 6px; }
 .setup-checks li.ok { color: var(--ok); }
 .setup-checks li.missing { color: var(--ink-soft); }

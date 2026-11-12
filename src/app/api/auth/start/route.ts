@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { buildAuthorizeUrl } from "@/auth/oauth";
 import { codeChallenge, generateCodeVerifier, randomState } from "@/auth/pkce";
-import { writeOauthHandoff } from "@/auth/session";
+import { isAlertSetupArmed, writeOauthHandoff } from "@/auth/session";
 import { getConfig, oauthConfigured, redirectUriFor } from "@/config";
 
 export const dynamic = "force-dynamic";
@@ -12,6 +12,9 @@ export async function GET(request: Request) {
     return NextResponse.redirect(new URL("/?auth_error=not_configured", request.url));
   }
   const watch = new URL(request.url).searchParams.get("watch") === "1";
+  if (watch && !(await isAlertSetupArmed())) {
+    return NextResponse.redirect(new URL("/alerts/setup?problem=code", request.url));
+  }
   const state = randomState();
   const verifier = generateCodeVerifier();
   await writeOauthHandoff({ state, verifier, watch });

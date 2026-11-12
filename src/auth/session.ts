@@ -85,32 +85,31 @@ export async function clearOauthHandoff(): Promise<void> {
   jar.set(OAUTH_COOKIE, "", cookieOptions(0));
 }
 
-const WATCH_COOKIE = "pg_watch";
+const ARM_COOKIE = "pg_alert_arm";
 
 /**
- * The one-time grant for background alerts. It is a separate Buffer sign-in from the browser
- * session, because refresh tokens are single use and two holders of one token would break each other.
- * Kept for 15 minutes, httpOnly, then gone.
+ * Turning alerts on stores a Buffer grant on the server, so it is gated: the owner proves they can read
+ * the deployment's CRON_SECRET on the setup page, which arms this 10-minute cookie. Only an armed browser
+ * can finish the "connect for alerts" sign-in.
  */
-export async function writeWatchGrant(tokens: TokenSet): Promise<void> {
+export async function armAlertSetup(): Promise<void> {
   const { sessionSecret } = getConfig();
   if (!sessionSecret) throw new Error("SESSION_SECRET is not set.");
   const jar = await cookies();
-  jar.set(WATCH_COOKIE, seal({ refreshToken: tokens.refreshToken }, sessionSecret), cookieOptions(15 * 60));
+  jar.set(ARM_COOKIE, seal({ until: Date.now() + 10 * 60_000 }, sessionSecret), cookieOptions(10 * 60));
 }
 
-export async function readWatchGrant(): Promise<{ refreshToken: string | null } | null> {
+export async function isAlertSetupArmed(): Promise<boolean> {
   const { sessionSecret } = getConfig();
-  if (!sessionSecret) return null;
+  if (!sessionSecret) return false;
   const jar = await cookies();
-  const value = jar.get(WATCH_COOKIE)?.value;
-  if (!value) return null;
-  const grant = open<{ refreshToken?: string | null }>(value, sessionSecret);
-  if (!grant) return null;
-  return { refreshToken: grant.refreshToken ?? null };
+  const value = jar.get(ARM_COOKIE)?.value;
+  if (!value) return false;
+  const armed = open<{ until?: number }>(value, sessionSecret);
+  return typeof armed?.until === "number" && armed.until > Date.now();
 }
 
-export async function clearWatchGrant(): Promise<void> {
+export async function clearAlertSetup(): Promise<void> {
   const jar = await cookies();
-  jar.set(WATCH_COOKIE, "", cookieOptions(0));
+  jar.set(ARM_COOKIE, "", cookieOptions(0));
 }
