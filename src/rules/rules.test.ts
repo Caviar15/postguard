@@ -202,6 +202,7 @@ describe("aspect-ratio", () => {
     expect(aspect).toHaveLength(1);
     expect(aspect[0]?.advisory).toBe(true);
     expect(aspect[0]?.severity).toBe("high");
+    expect(aspect[0]?.detail).toContain("Instagram post");
   });
 });
 
