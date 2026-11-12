@@ -30,6 +30,17 @@ describe("hashtag rule", () => {
     expect(over[0]?.detail).toContain("Instagram caps hashtags at 5 per caption. Buffer's composer blocks publishing above 5.");
     expect(over[0]?.detail).not.toMatch(/refuses|fail when it publishes/i);
   });
+  it("flags a first comment with 8 hashtags when the caption has none, naming the first comment", () => {
+    const eight = Array.from({ length: 8 }, (_, i) => `#h${i}`).join(" ");
+    const found = hashtags(ctxFor([makePost({ service: "instagram", text: "New drop", hasFirstCommentField: true, firstComment: eight })])).filter((f) => f.title === "More than 5 hashtags");
+    expect(found).toHaveLength(1);
+    expect(found[0]?.detail).toContain("8 hashtags in the first comment");
+    expect(found[0]?.detail).not.toContain("in the caption");
+    // exactly 5 is allowed, a URL fragment is not a tag, and a network with no first-comment field is not read
+    const five = Array.from({ length: 5 }, (_, i) => `#h${i}`).join(" ");
+    expect(hashtags(ctxFor([makePost({ service: "instagram", text: "x", hasFirstCommentField: true, firstComment: `${five} https://a.example/#six` })]))).toHaveLength(0);
+    expect(hashtags(ctxFor([makePost({ service: "instagram", text: "x", hasFirstCommentField: false, firstComment: eight })]))).toHaveLength(0);
+  });
   it("counts the caption and the first comment separately", () => {
     const six = Array.from({ length: 6 }, (_, i) => `#c${i}`).join(" ");
     const three = "#one #two #three";
@@ -99,6 +110,12 @@ describe("duplicates", () => {
     duplicates(ctxFor(posts));
     // URLs are extracted once per post. The pairwise loop is still O(n²), and this budget is the CI ceiling.
     expect(Date.now() - t0).toBeLessThan(1500);
+  });
+  it("700 long posts that each carry a different link stay fast (URLs are extracted once per post, not once per pair)", () => {
+    const posts = Array.from({ length: 700 }, (_, i) => makePost({ id: `p${i}`, text: ("Long caption with many words about the studio https://shop.example/p/" + i + " ").repeat(30) + ` n${i}`, dueAt: "2026-11-12T10:00:00Z" }));
+    const t0 = Date.now();
+    duplicates(ctxFor(posts));
+    expect(Date.now() - t0).toBeLessThan(1000);
   });
 });
 

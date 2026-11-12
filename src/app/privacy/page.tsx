@@ -25,9 +25,10 @@ export default function PrivacyPage() {
             Signing out deletes the cookie. When the session ends, PostGuard asks you to connect again.
           </p>
           <p style={{ marginTop: 12 }}>
-            Scan results are kept in memory on the server for about 10 minutes so a reload does not spend the shared
-            Buffer rate limit again. They are not written to a database. Demo mode uses a built-in fixture and does not
-            call Buffer.
+            Scan results are kept in memory on the server for about 10 minutes. Reloading the dashboard uses that
+            copy and does not call Buffer again. Scan again bypasses the cache. Once the new result is on screen, the
+            address bar drops the refresh flag, so a later reload uses the saved result. Results are not written to a
+            database. Demo mode uses a built-in fixture and does not call Buffer.
           </p>
           <p style={{ marginTop: 12 }}>
             If you press <em>Suggest alt text</em>, the URL of that post&rsquo;s image and its caption are sent to a vision

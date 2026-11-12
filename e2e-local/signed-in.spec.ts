@@ -62,6 +62,22 @@ test("Buffer 429: friendly error, not a crash", async ({ page, context }) => {
   await expect(page.locator("p.banner")).toContainText("rate limit");
 });
 
+test("Buffer 429 with no Retry-After header: the banner names the 15 minute window, never 0 seconds", async ({ page, context }) => {
+  scenario("rateLimitedNoHeader"); await signIn(context);
+  await page.goto("/dashboard");
+  const banner = await page.locator("p.banner").innerText();
+  console.log("BANNER_NO_HEADER", banner);
+  expect(banner).not.toMatch(/\b0 seconds/);
+  expect(banner).toMatch(/900 seconds|15 minutes/);
+});
+
+test("a first comment with 8 hashtags is flagged on the live dashboard", async ({ page, context }) => {
+  scenario("firstCommentTags"); await signIn(context);
+  await page.goto("/dashboard");
+  await expect(page.getByText("More than 5 hashtags")).toBeVisible();
+  await expect(page.getByText(/8 hashtags in the first comment/)).toBeVisible();
+});
+
 test("Buffer 401 without a refresh token asks to reconnect", async ({ page, context }) => {
   scenario("authRejected"); await signIn(context);
   await page.goto("/dashboard");
@@ -124,4 +140,19 @@ test("dashboard query abuse stays 200", async ({ page, context }) => {
     await expect(page.getByText("Internal Server Error"), q).toHaveCount(0);
     await expect(page.getByRole("heading", { name: /Queue health|Connect Buffer/ }), q).toBeVisible();
   }
+});
+
+test("after Scan again, a browser reload reads the cache instead of rescanning, and the URL drops ?refresh=1", async ({ page, context }) => {
+  scenario("normal"); await signIn(context);
+  await page.goto("/dashboard?days=14");
+  const first = mockCalls().length;
+  await page.getByRole("link", { name: "Scan again" }).click();
+  // The old page is still on screen while the rescan streams in, so wait for the rescan's own Buffer calls.
+  await expect.poll(() => mockCalls().length - first, { timeout: 8000 }).toBeGreaterThanOrEqual(4);
+  await expect.poll(() => page.url(), { timeout: 5000 }).toMatch(/\/dashboard\?days=14$/);
+  await page.waitForTimeout(500);
+  const before = mockCalls().length;
+  await page.reload();
+  await expect(page.getByRole("heading", { name: "Queue health" })).toBeVisible();
+  expect(mockCalls().length - before, "a reload must not spend Buffer quota").toBe(0);
 });
