@@ -78,6 +78,11 @@ export function channelPriority(
  * labels the channel High, so it costs the High penalty here too. Disconnected and locked channels
  * already carry blocker findings, so they are not charged twice.
  */
+/** The findings a post card should show: its own, plus channel-level ones (paused, locked, disconnected). */
+export function findingsForCard(findings: Finding[], card: { id: string; channelId: string }): Finding[] {
+  return findings.filter((finding) => finding.postId === card.id || (finding.postId === null && finding.channelId === card.channelId));
+}
+
 export function channelScore(findings: Finding[], channel?: Pick<Channel, "isQueuePaused">): number {
   const flagPenalty = channel?.isQueuePaused ? PENALTY.high : 0;
   const score = findings.reduce((total, finding) => total - PENALTY[finding.severity], 100 - flagPenalty);

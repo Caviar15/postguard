@@ -156,3 +156,14 @@ test("after Scan again, a browser reload reads the cache instead of rescanning, 
   await expect(page.getByRole("heading", { name: "Queue health" })).toBeVisible();
   expect(mockCalls().length - before, "a reload must not spend Buffer quota").toBe(0);
 });
+
+test("a locked channel's card says why it is Blocker instead of 'No problems on this post'", async ({ page, context }) => {
+  scenario("lockedChannel"); await signIn(context);
+  await page.goto("/dashboard");
+  const card = page.locator(".post-list article").first();
+  await expect(card).toHaveAttribute("data-priority", "blocker");
+  await expect(card).toContainText("Locked channel still has posts queued");
+  await expect(card).not.toContainText("No problems on this post");
+  await expect(page.getByRole("button", { name: /^Blocker \(1\)/ })).toBeVisible();
+  await expect(page.locator(".stats .priority-blocker")).toContainText("1");
+});

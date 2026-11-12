@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { PRIORITIES, PRIORITY_LABEL, countPriorities, selectCards } from "@/domain/readiness";
+import { PRIORITIES, PRIORITY_LABEL, countPriorities, findingsForCard, selectCards } from "@/domain/readiness";
 import type { AltSuggestion, Priority, ScanReport } from "@/domain/types";
 import { CropPreview } from "./CropPreview";
 import { Brand } from "./Brand";
@@ -274,7 +274,7 @@ export function Dashboard({
         {visibleCards.length === 0 && report.postsScanned > 0 ? <p>No posts with this priority.</p> : null}
         <div className="post-list">
           {visibleCards.map((card) => {
-            const findings = report.findings.filter((finding) => finding.postId === card.id);
+            const findings = findingsForCard(report.findings, card);
             const recorded = report.suggestions.find((item) => item.postId === card.id);
             const live = liveSuggestions[card.id];
             return (
