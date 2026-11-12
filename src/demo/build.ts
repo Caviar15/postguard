@@ -1,6 +1,7 @@
 import type { Asset, Channel, LinkStatus, Post, ScanReport, Service } from "@/domain/types";
 import { linkedInLength, mathBold } from "@/rules/text";
 import { assembleReport, resolveLinks } from "@/scan/assemble";
+import { demoPhoto } from "./photos";
 import { platformFixture, type DemoPlatform } from "./platforms";
 
 export type { DemoPlatform };
@@ -246,21 +247,6 @@ export const DEMO_SUGGESTIONS = [
   },
 ];
 
-/**
- * The fixture's image hosts (cdn.northwind.example) do not exist, so the crop preview would
- * show an empty frame. A generated picture with the same pixel size keeps the preview honest:
- * the shaded bands are still the part a centered crop would cut off.
- */
-export function placeholderImage(width: number, height: number, hue: number): string {
-  const svg =
-    `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${width} ${height}" preserveAspectRatio="xMidYMid slice">` +
-    `<defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="hsl(${hue} 45% 78%)"/><stop offset="1" stop-color="hsl(${(hue + 40) % 360} 40% 52%)"/></linearGradient></defs>` +
-    `<rect width="${width}" height="${height}" fill="url(#g)"/>` +
-    `<g fill="hsl(${hue} 30% 94% / 0.55)"><circle cx="${width * 0.3}" cy="${height * 0.32}" r="${Math.min(width, height) * 0.16}"/>` +
-    `<rect x="${width * 0.22}" y="${height * 0.55}" width="${width * 0.56}" height="${height * 0.22}" rx="${Math.min(width, height) * 0.03}"/></g></svg>`;
-  return `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`;
-}
-
 export async function buildDemoReport(
   now = new Date(),
   windowDays = 7,
@@ -303,15 +289,17 @@ export async function buildDemoReport(
           ? "Drafts are included. The unfinished Instagram draft is not scheduled yet."
           : "Drafts are hidden. Turn on Include drafts to check a post before it is scheduled.",
       "Alt-text suggestions in this demo are recorded examples. Nothing is sent to a model.",
-      "Images in the demo are generated placeholders with the real pixel sizes, because the example image hosts do not exist.",
+      "Pictures on the cards are files shipped with this app. The checks still use the fixture addresses, including the signed image that is meant to expire.",
       selected
         ? "Switch the example at the top to see another platform, or All for the mixed queue."
         : "The broken posts are invented: a dead shop link, a lookbook 404, an old blog 404, a signed S3 image, a paused Facebook queue, a caption that promises a first comment, a LinkedIn post written in Unicode bold, and a post that still needs approval before a slot in the next few hours.",
     ],
   });
-  report.cards = report.cards.map((card, index) =>
-    card.preview?.src ? { ...card, preview: { ...card.preview, src: placeholderImage(card.preview.width, card.preview.height, (index * 47 + 20) % 360) } } : card,
-  );
+  report.cards = report.cards.map((card) => ({
+    ...card,
+    media: card.media.map((thumb) => ({ ...thumb, src: demoPhoto(thumb.src) })),
+    preview: card.preview?.src ? { ...card.preview, src: demoPhoto(card.preview.src) } : card.preview,
+  }));
   // The mixed queue leads with the dead shop link, then the TODO. A single platform keeps publish order.
   if (!selected) {
     const lead = ["post_ig_comments", "post_tw_todo"];

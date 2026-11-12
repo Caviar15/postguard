@@ -54,4 +54,50 @@ describe("demo platform switch", () => {
     expect(tiktok.findings.some((finding) => finding.ruleId === "aspect-ratio")).toBe(true);
     expect(tiktok.channels[0]?.service).toBe("tiktok");
   });
+
+  it("shows a shipped picture for every post that has media, and leaves the no-video post empty", async () => {
+    const all = await buildDemoReport(NOW, 7, false, "all");
+    expect(all.headline).toBe("Next 7 days: 3 dead links, 1 duplicate, 2 missing alt text, 1 paused channel, 8 other risks.");
+    const dye = all.cards.find((card) => card.id === "post_ig_comments");
+    expect(dye?.media).toEqual([{ src: "/demo/dye.jpg", alt: "", kind: "image" }]);
+    expect(dye?.preview?.src).toBe("/demo/dye.jpg");
+    const signed = all.cards.find((card) => card.id === "post_pin_signed");
+    expect(signed?.media[0]?.src).toBe("/demo/palette.jpg");
+    expect(all.findings.some((finding) => finding.postId === "post_pin_signed" && finding.detail.includes("X-Amz-Signature"))).toBe(true);
+
+    const instagram = await buildDemoReport(NOW, 7, false, "instagram");
+    const alt = instagram.cards.find((card) => card.id === "ig_alt");
+    const ready = instagram.cards.find((card) => card.id === "ig_ready");
+    expect(alt?.media).toEqual([{ src: "/demo/ig-square.jpg", alt: "", kind: "image" }]);
+    expect(ready?.media.map((thumb) => thumb.alt)).toEqual([
+      "Folded walnut-dyed linen on a studio table",
+      "Close view of the walnut dye along the hem",
+    ]);
+    expect(instagram.cards.find((card) => card.id === "ig_dead")?.media).toEqual([]);
+
+    const tiktok = await buildDemoReport(NOW, 7, false, "tiktok");
+    expect(tiktok.cards.find((card) => card.id === "tt_novideo")?.media).toEqual([]);
+    expect(tiktok.cards.find((card) => card.id === "tt_ready")?.media).toEqual([
+      { src: "/demo/tiktok-ready.jpg", alt: "", kind: "video" },
+    ]);
+    expect(tiktok.headline).toContain("1 dead link");
+
+    const x = await buildDemoReport(NOW, 7, false, "x");
+    expect(x.cards.find((card) => card.id === "x_ready")?.media[0]).toEqual({
+      src: "/demo/x-ready.jpg",
+      alt: "Linen shirts on a rack in the studio",
+      kind: "image",
+    });
+    expect(x.cards.filter((card) => card.id !== "x_ready").every((card) => card.media.length === 0)).toBe(true);
+
+    const linkedin = await buildDemoReport(NOW, 7, false, "linkedin");
+    expect(linkedin.cards.find((card) => card.id === "li_alt")?.media).toEqual([
+      { src: "/demo/li-desk.jpg", alt: "", kind: "image" },
+    ]);
+
+    const facebook = await buildDemoReport(NOW, 7, false, "facebook");
+    expect(facebook.cards.find((card) => card.id === "fb_weak")?.media[0]?.alt).toBe("image");
+    expect(facebook.cards.find((card) => card.id === "fb_alt")?.media[0]?.alt).toBe("");
+    expect(facebook.cards.find((card) => card.id === "fb_ready")?.media).toEqual([]);
+  });
 });
