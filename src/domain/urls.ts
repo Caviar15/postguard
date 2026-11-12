@@ -1,9 +1,34 @@
-function urlPattern(): RegExp {
-  return /https?:\/\/[^\s<>"')\]]+/gi;
+/**
+ * Matches generously (parentheses and apostrophes are legal in paths) and lets
+ * stripTrailingPunctuation decide where the URL really ends.
+ */
+export function urlPattern(): RegExp {
+  return /https?:\/\/[^\s<>"\]\u201d\u2019]+/gi;
 }
 
+function count(text: string, char: string): number {
+  return text.split(char).length - 1;
+}
+
+/**
+ * Drops sentence punctuation and quotes from the end, and a closing ")" only when
+ * it has no "(" to pair with. That keeps https://en.wikipedia.org/wiki/Rust_(programming_language)
+ * whole, while "(see https://a.example/x)" and "[docs](https://a.example/d)" still lose the bracket.
+ */
 export function stripTrailingPunctuation(url: string): string {
-  return url.replace(/[.,!?;:)]+$/g, "");
+  let out = url;
+  for (;;) {
+    const next = out.replace(/[.,!?;:'"*\u2026]+$/g, "");
+    if (next !== out) {
+      out = next;
+      continue;
+    }
+    if (out.endsWith(")") && count(out, ")") > count(out, "(")) {
+      out = out.slice(0, -1);
+      continue;
+    }
+    return out;
+  }
 }
 
 export function extractUrls(text: string | null | undefined): string[] {
