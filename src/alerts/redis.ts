@@ -12,6 +12,7 @@ export class UpstashRedis implements RedisClient {
     private readonly url: string,
     private readonly token: string,
     private readonly fetchImpl: typeof fetch = fetch,
+    private readonly timeoutMs = 8_000,
   ) {}
 
   async command(args: Array<string | number>): Promise<unknown> {
@@ -20,6 +21,7 @@ export class UpstashRedis implements RedisClient {
       headers: { authorization: `Bearer ${this.token}`, "content-type": "application/json" },
       body: JSON.stringify(args),
       cache: "no-store",
+      signal: AbortSignal.timeout(this.timeoutMs),
     });
     if (!response.ok) throw new Error(`Alert store answered HTTP ${response.status}.`);
     const json = (await response.json()) as { result?: unknown; error?: string };

@@ -74,25 +74,43 @@ export async function runAlerts(deps: RunDeps, options: { dryRun?: boolean } = {
         continue;
       }
 
+      // Every key taken below is given back unless the email really went out. A failure at ANY step (a Redis blip in
+      // the middle of the claims, a renderer error, a mail provider error) must not leave claims behind: a claim
+      // with no email would suppress that alert for CLAIM_TTL_MS.
+      const taken: AlertItem[] = [];
       const fresh: AlertItem[] = [];
-      for (const item of items) {
-        if (await deps.store.claim(item.key, CLAIM_TTL_MS)) fresh.push(item);
-        else result.suppressed += 1;
-      }
-      if (fresh.length > 0) {
-        const message = render(fresh);
-        const idempotencyKey = createHash("sha256")
-          .update(`${subscriber.id}\n${fresh.map((item) => item.key).sort().join("\n")}`)
-          .digest("hex");
-        try {
-          await deps.mailer.send(message, { idempotencyKey });
-          result.sent += 1;
-        } catch (error) {
-          for (const item of fresh) await deps.store.unclaim(item.key).catch(() => undefined);
-          result.errors.push(`${subscriber.id}: the email could not be sent`);
-          deps.log.warn("alerts: sending failed", { subscriber: subscriber.id, error: errorName(error) });
-          continue;
+      let delivered = false;
+      try {
+        for (const item of items) {
+          taken.push(item); // before the call: a SET that succeeded but whose answer was lost must be undone too
+          if (await deps.store.claim(item.key, CLAIM_TTL_MS)) fresh.push(item);
+          else {
+            taken.pop();
+            result.suppressed += 1;
+          }
         }
+        if (fresh.length > 0) {
+          const message = render(fresh);
+          const idempotencyKey = createHash("sha256")
+            .update(`${subscriber.id}\n${fresh.map((item) => item.key).sort().join("\n")}`)
+            .digest("hex");
+          try {
+            await deps.mailer.send(message, { idempotencyKey });
+          } catch (error) {
+            result.errors.push(`${subscriber.id}: the email could not be sent`);
+            deps.log.warn("alerts: sending failed", { subscriber: subscriber.id, error: errorName(error) });
+            throw error;
+          }
+          delivered = true;
+          result.sent += 1;
+        }
+      } catch (error) {
+        if (!delivered) for (const item of taken) await deps.store.unclaim(item.key).catch(() => undefined);
+        if (!result.errors.some((entry) => entry.startsWith(`${subscriber.id}:`))) {
+          result.errors.push(`${subscriber.id}: the alert could not be prepared`);
+          deps.log.warn("alerts: preparing the alert failed", { subscriber: subscriber.id, error: errorName(error) });
+        }
+        continue;
       }
       await deps.store.setLastSuccess(subscriber.id, now.toISOString());
       succeeded += 1;

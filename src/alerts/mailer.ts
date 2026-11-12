@@ -9,7 +9,7 @@ export const DEFAULT_FROM = "PostGuard <onboarding@resend.dev>";
  */
 export class ResendMailer implements Mailer {
   constructor(
-    private readonly options: { apiKey: string; from: string; endpoint?: string },
+    private readonly options: { apiKey: string; from: string; endpoint?: string; timeoutMs?: number },
     private readonly fetchImpl: typeof fetch = fetch,
   ) {}
 
@@ -29,6 +29,8 @@ export class ResendMailer implements Mailer {
           "content-type": "application/json",
           "idempotency-key": idempotencyKey,
         },
+        // A hung provider must end in an error (claims are given back), not in Vercel killing the function.
+        signal: AbortSignal.timeout(this.options.timeoutMs ?? 15_000),
         body: JSON.stringify({
           from: this.options.from,
           to: [message.to],

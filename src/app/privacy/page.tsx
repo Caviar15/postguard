@@ -30,13 +30,13 @@ export default function PrivacyPage() {
             <strong>Alert emails are different.</strong> Alerts are optional and only the owner of a deployment can turn
             them on. When alerts are on, PostGuard checks the queue once a day and sends an email about posts that will
             publish in roughly the next 27 hours and have a Blocker or High problem. To do that while you are away, it
-            asks Buffer for a separate sign-in and stores that sign-in&rsquo;s refresh token on the server, in a Redis
+            asks Buffer for a separate sign-in and stores that sign-in&rsquo;s refresh token on the server (with the short-lived access token it was last given), in a Redis
             database (Upstash), encrypted with AES-256-GCM. The same database keeps the time of the last check, an
             unsubscribe token, and hashed markers of which post problems were already emailed, so you are not emailed
             twice. The recipient address is a deployment setting, not stored in the database. The email contains the
             channel name, publish time, a short caption snippet and the problems found, and is sent through Resend.
             Alerts use the same read-only scopes. Turning alerts off on the setup page, or using the unsubscribe link in
-            any alert, deletes the stored token. You can also revoke the app in Buffer under Settings → API.
+            any alert, deletes the stored token. Signing out of the dashboard does not revoke the alert sign-in, because it is a separate grant: use <em>Turn alerts off</em> on the setup page or the unsubscribe link. You can also revoke the app in Buffer under Settings → API.
           </p>
           <p style={{ marginTop: 12 }}>
             Scan results are kept in memory on the server for about 10 minutes. Reloading the dashboard uses that

@@ -48,7 +48,7 @@ export function untilLabel(iso: string, now: Date): string {
 }
 
 /** Scan notes that mean the queue was not read in full. */
-const INCOMPLETE = /stopped (early|after)|could not be loaded|more than (one page|50)|left out of this scan|link checks failed|were not checked/i;
+const INCOMPLETE = /stopped (early|after)|could not be loaded|more than (one page|50)|left out of this scan|link checks failed|were not checked|only one is included/i;
 
 export function incompleteNotes(report: Pick<ScanReport, "notes">): string[] {
   return report.notes.filter((note) => INCOMPLETE.test(note));

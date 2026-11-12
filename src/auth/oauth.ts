@@ -105,6 +105,7 @@ export async function refreshAccessToken(input: {
       grant_type: "refresh_token",
       refresh_token: input.refreshToken,
     }),
+    signal: AbortSignal.timeout(15_000),
   });
   const json = (await response.json().catch(() => ({}))) as TokenJson;
   if (!response.ok) {
