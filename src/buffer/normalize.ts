@@ -185,16 +185,20 @@ export function readChannels(data: unknown): Channel[] {
   });
 }
 
-export function readPosts(data: unknown): { posts: Post[]; hasNextPage: boolean; endCursor: string | null } {
+export function readPosts(data: unknown): { posts: Post[]; hasNextPage: boolean; endCursor: string | null; skipped: number } {
   const root = isRecord(data) ? data : {};
   const connection = root.posts;
   const pageInfo = isRecord(connection) && isRecord(connection.pageInfo) ? connection.pageInfo : {};
+  const nodes = nodesFromConnection(connection);
+  const posts = nodes.flatMap((node) => {
+    const post = normalizePost(node);
+    return post ? [post] : [];
+  });
   return {
-    posts: nodesFromConnection(connection).flatMap((node) => {
-      const post = normalizePost(node);
-      return post ? [post] : [];
-    }),
+    posts,
     hasNextPage: pageInfo.hasNextPage === true,
     endCursor: asString(pageInfo.endCursor),
+    // Posts Buffer returned that had no id, text or channel. They are counted so the report can say so.
+    skipped: nodes.length - posts.length,
   };
 }
