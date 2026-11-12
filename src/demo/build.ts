@@ -1,6 +1,9 @@
 import type { Asset, Channel, LinkStatus, Post, ScanReport, Service } from "@/domain/types";
 import { linkedInLength, mathBold } from "@/rules/text";
 import { assembleReport, resolveLinks } from "@/scan/assemble";
+import { platformFixture, type DemoPlatform } from "./platforms";
+
+export type { DemoPlatform };
 
 const SHOP = "https://shop.northwind.example/grid";
 const LOOKBOOK = "https://shop.northwind.example/fall-lookbook";
@@ -258,58 +261,69 @@ export function placeholderImage(width: number, height: number, hue: number): st
   return `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`;
 }
 
-export async function buildDemoReport(now = new Date(), windowDays = 7, includeDrafts = false): Promise<ScanReport> {
+export async function buildDemoReport(
+  now = new Date(),
+  windowDays = 7,
+  includeDrafts = false,
+  platform: DemoPlatform = "all",
+): Promise<ScanReport> {
   const start = now.getTime() - 24 * 60 * 60 * 1000;
   const end = now.getTime() + windowDays * 24 * 60 * 60 * 1000;
-  const posts = demoPosts(now).filter((post) => {
+  const selected = platform === "all" ? null : platformFixture(platform, now);
+  const posts = (selected?.posts ?? demoPosts(now)).filter((post) => {
     if ((post.status === "draft" || post.status === "sending") && !includeDrafts) return false;
     if (!post.dueAt) return true;
     const due = new Date(post.dueAt).getTime();
     return due >= start && due <= end;
   });
   const { results, skipped } = await resolveLinks(posts, {
-    preset: demoLinkPreset(),
+    preset: selected?.links ?? demoLinkPreset(),
     fetchImpl: demoFetch,
     limit: 40,
   });
   const report = assembleReport({
     posts,
-    channels: DEMO_CHANNELS,
+    channels: selected?.channels ?? DEMO_CHANNELS,
     linkResults: results,
     now,
     windowDays,
     mode: "demo",
-    organization: { id: "org_northwind", name: "Northwind Studio" },
+    organization: selected?.organization ?? { id: "org_northwind", name: "Northwind Studio" },
     quotaWindows: [],
     requestsUsed: 0,
     cached: false,
     skippedLinks: skipped,
     includeDrafts,
-    suggestions: DEMO_SUGGESTIONS,
+    suggestions: selected ? [] : DEMO_SUGGESTIONS,
     notes: [
       "Demo mode replays a fixture queue. No Buffer API calls are made.",
-      includeDrafts
-        ? "Drafts are included. The unfinished Instagram draft is not scheduled yet."
-        : "Drafts are hidden. Turn on Include drafts to check a post before it is scheduled.",
+      selected
+        ? selected.note
+        : includeDrafts
+          ? "Drafts are included. The unfinished Instagram draft is not scheduled yet."
+          : "Drafts are hidden. Turn on Include drafts to check a post before it is scheduled.",
       "Alt-text suggestions in this demo are recorded examples. Nothing is sent to a model.",
       "Images in the demo are generated placeholders with the real pixel sizes, because the example image hosts do not exist.",
-      "The broken posts are invented: a dead shop link, a lookbook 404, an old blog 404, a signed S3 image, a paused Facebook queue, a caption that promises a first comment, a LinkedIn post written in Unicode bold, and a post that still needs approval before a slot in the next few hours.",
+      selected
+        ? "Switch the example at the top to see another platform, or All for the mixed queue."
+        : "The broken posts are invented: a dead shop link, a lookbook 404, an old blog 404, a signed S3 image, a paused Facebook queue, a caption that promises a first comment, a LinkedIn post written in Unicode bold, and a post that still needs approval before a slot in the next few hours.",
     ],
   });
   report.cards = report.cards.map((card, index) =>
     card.preview?.src ? { ...card, preview: { ...card.preview, src: placeholderImage(card.preview.width, card.preview.height, (index * 47 + 20) % 360) } } : card,
   );
-  // Lead with the dead shop link, then the TODO, so the first screen is a real failure.
-  // Due times stay as scheduled; only the demo's card order changes.
-  const lead = ["post_ig_comments", "post_tw_todo"];
-  report.cards.sort((a, b) => {
-    const ai = lead.indexOf(a.id);
-    const bi = lead.indexOf(b.id);
-    const ar = ai === -1 ? lead.length : ai;
-    const br = bi === -1 ? lead.length : bi;
-    if (ar !== br) return ar - br;
-    return (a.dueAt ?? "9999").localeCompare(b.dueAt ?? "9999");
-  });
+  // The mixed queue leads with the dead shop link, then the TODO. A single platform keeps publish order.
+  if (!selected) {
+    const lead = ["post_ig_comments", "post_tw_todo"];
+    report.cards.sort((a, b) => {
+      const ai = lead.indexOf(a.id);
+      const bi = lead.indexOf(b.id);
+      const ar = ai === -1 ? lead.length : ai;
+      const br = bi === -1 ? lead.length : bi;
+      if (ar !== br) return ar - br;
+      return (a.dueAt ?? "9999").localeCompare(b.dueAt ?? "9999");
+    });
+  }
   return report;
 }
 

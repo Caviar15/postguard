@@ -15,7 +15,7 @@ npm install
 npm run dev
 ```
 
-Open http://localhost:3000 and choose **Try the demo queue**. Demo mode replays a fixture (Northwind Studio) and does not call Buffer, so it spends none of the shared app quota.
+Open http://localhost:3000 and choose **Try the demo queue**. Demo mode replays a fixture (Northwind Studio) and does not call Buffer, so it spends none of the shared app quota. On `/demo`, the example switcher chooses All (the mixed queue) or a single platform: Instagram, TikTok, X, LinkedIn, or Facebook. The choice is `?platform=` (`tiktok`, `x`, and so on), so a reload and Scan again keep it.
 
 ## Connect a real Buffer account
 
@@ -98,7 +98,8 @@ The Experimental `configuration` query is not called. Limits come from the [char
 | `publishing-error` | High | `Post.error.message` |
 | `notification-post` | Info | `schedulingType: notification` |
 | `placeholder` | High | `TODO`, `TBD`, `FIXME`, lorem, `[link]`, `{{…}}`, `<name>`, `XXX` |
-| `hashtags` | High over 5 on Instagram. Low for a broken `#` | Buffer refuses an Instagram post with more than 5 hashtags |
+| `hashtags` | High over 5 on Instagram. Low for a broken `#` | Instagram caps hashtags at 5 per caption. Buffer's composer blocks publishing above 5 |
+| `tiktok-video` | High, best-effort | A TikTok post with no video. A video that is not 9:16 is the existing crop check |
 
 ## Verified against the published schema, and what is still assumed
 
