@@ -18,6 +18,8 @@ export type GrantDeps = {
 };
 
 const SKEW_MS = 60_000;
+const SAVE_ATTEMPTS = 3;
+const SAVE_RETRY_MS = 250;
 const WAIT_STEP_MS = 400;
 const WAIT_STEPS = 12;
 
@@ -61,11 +63,17 @@ export async function getAccessToken(deps: GrantDeps, subscriberId: string): Pro
       throw new BufferAuthError("Buffer did not accept the saved alert token. Turn alerts on again at /alerts/setup.");
     }
     if (!tokens.refreshToken) throw new BufferAuthError("Buffer did not return a refresh token. Turn alerts on again at /alerts/setup.");
-    try {
-      await deps.grants.writeGrant(subscriberId, { refreshToken: tokens.refreshToken, accessToken: tokens.accessToken, expiresAt: tokens.expiresAt });
-    } catch {
-      throw new Error("Buffer issued a new alert token but it could not be saved. Turn alerts on again at /alerts/setup.");
+    // The old refresh token is spent now, so losing the new one ends the grant. Retry a transient store failure.
+    let saved = false;
+    for (let attempt = 1; attempt <= SAVE_ATTEMPTS && !saved; attempt += 1) {
+      try {
+        await deps.grants.writeGrant(subscriberId, { refreshToken: tokens.refreshToken, accessToken: tokens.accessToken, expiresAt: tokens.expiresAt });
+        saved = true;
+      } catch {
+        if (attempt < SAVE_ATTEMPTS) await deps.sleep(SAVE_RETRY_MS * attempt);
+      }
     }
+    if (!saved) throw new Error("Buffer issued a new alert token but it could not be saved, and the old one is spent. Turn alerts on again at /alerts/setup.");
     return tokens.accessToken;
   } finally {
     await release();
