@@ -33,10 +33,10 @@ function jaccard(left: Set<string>, right: Set<string>): number {
 }
 
 /** True when both posts carry links and share none: "New episode! <ep 41>" and "New episode! <ep 42>" are different posts. */
-function linksDiffer(left: Post, right: Post): boolean {
-  const a = new Set(extractUrls(left.text));
-  const b = extractUrls(right.text);
-  return a.size > 0 && b.length > 0 && !b.some((url) => a.has(url));
+function linksDiffer(a: Set<string>, b: Set<string>): boolean {
+  if (a.size === 0 || b.size === 0) return false;
+  for (const url of b) if (a.has(url)) return false;
+  return true;
 }
 
 function hoursApart(left: string | null, right: string | null): number | null {
@@ -60,7 +60,7 @@ export function duplicates(ctx: RuleContext): Finding[] {
   const prepared = ctx.posts.map((post) => {
     const normalized = normalize(post.text);
     const tokens = words(normalized);
-    return { post, normalized, tokens, shingles: shingles(tokens) };
+    return { post, normalized, tokens, shingles: shingles(tokens), urls: new Set(extractUrls(post.text)) };
   });
 
   for (let i = 0; i < prepared.length; i += 1) {
@@ -73,7 +73,7 @@ export function duplicates(ctx: RuleContext): Finding[] {
       const inWindow = hours === null ? true : sameChannel ? hours <= 24 : hours <= 1;
       if (!inWindow) continue;
 
-      const differentLinks = linksDiffer(a.post, b.post);
+      const differentLinks = linksDiffer(a.urls, b.urls);
       const exact = !differentLinks && a.normalized.length >= 20 && a.normalized === b.normalized;
       const near =
         !exact && !differentLinks && a.tokens.length >= 8 && b.tokens.length >= 8 && jaccard(a.shingles, b.shingles) >= 0.9;

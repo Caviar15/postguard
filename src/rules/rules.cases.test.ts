@@ -74,9 +74,8 @@ describe("duplicates", () => {
     const posts = Array.from({ length: 700 }, (_, i) => makePost({ id: `p${i}`, text: words.map((w, j) => (j % 7 === i % 7 ? `${w}x${i}` : w)).join(" "), dueAt: "2026-11-12T10:00:00Z" }));
     const t0 = Date.now();
     duplicates(ctxFor(posts));
-    // Every pair is in the same window, so this is the full O(n²) comparison.
-    // A laptop finishes in well under a second; a shared CI runner measured 1.2s.
-    expect(Date.now() - t0).toBeLessThan(5000);
+    // URLs are extracted once per post. The pairwise loop is still O(n²), and this budget is the CI ceiling.
+    expect(Date.now() - t0).toBeLessThan(1500);
   });
 });
 
