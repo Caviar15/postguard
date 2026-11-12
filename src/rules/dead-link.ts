@@ -1,4 +1,5 @@
 import { copyUrls, extractUrls } from "@/domain/urls";
+import { isValidZone } from "@/domain/timeline";
 import type { Finding, LinkOutcome, Severity } from "@/domain/types";
 import type { RuleContext } from "./context";
 import { makeFinding } from "./context";
@@ -13,16 +14,19 @@ const SEVERITY: Partial<Record<LinkOutcome, Severity>> = {
   unverified: "low",
 };
 
-/** A check from this scan can say so. A fixture or a day-old cache cannot say "just now". */
-function recheckedNote(status: { checkedAt?: string }, now: Date): string {
+/** Clock time of a live fetch. A cached answer keeps its own time, so it cannot say "just now". */
+function recheckedNote(status: { checkedAt?: string }, timeZone: string | null): string {
   if (!status.checkedAt) return "";
   const at = Date.parse(status.checkedAt);
   if (Number.isNaN(at)) return "";
-  const age = now.getTime() - at;
-  if (age < 0 || age > 36 * 3_600_000) return "";
-  if (age < 90_000) return " Re-checked just now.";
-  if (age < 60 * 60_000) return ` Re-checked ${Math.max(1, Math.round(age / 60_000))} min ago.`;
-  return ` Re-checked ${Math.max(1, Math.round(age / 3_600_000))} h ago.`;
+  const zone = timeZone && isValidZone(timeZone) ? timeZone : "UTC";
+  const clock = new Intl.DateTimeFormat("en-GB", {
+    hour: "2-digit",
+    minute: "2-digit",
+    hourCycle: "h23",
+    timeZone: zone,
+  }).format(new Date(at));
+  return ` Re-checked ${clock}.`;
 }
 
 const TITLE: Partial<Record<LinkOutcome, string>> = {
@@ -50,12 +54,13 @@ export function deadLinks(ctx: RuleContext): Finding[] {
       const severity = SEVERITY[status.outcome];
       const title = TITLE[status.outcome];
       if (!severity || !title) continue;
+      const zone = ctx.channelById.get(post.channelId)?.timezone ?? null;
       findings.push(
         makeFinding(ctx, {
           ruleId: "dead-link",
           severity,
           title,
-          detail: `${url} — ${status.detail}${recheckedNote(status, ctx.now)}`,
+          detail: `${url} — ${status.detail}${recheckedNote(status, zone)}`,
           post,
           channelId: post.channelId,
           key: `${status.outcome}:${url}`,
