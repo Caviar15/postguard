@@ -16,6 +16,13 @@ test("demo mode shows the queue health report", async ({ page }) => {
   await expect(summary).toContainText("1 paused channel");
   await expect(page.getByTestId("quota")).toContainText("Demo mode");
   await expect(page.getByTestId("timeline")).toBeVisible();
+  const soon = page.locator("#post-post_li_approval_soon");
+  await expect(soon.getByText("Awaiting approval")).toBeVisible();
+  await expect(soon.getByRole("heading", { name: /Waiting for approval, due in \d+h/ })).toBeVisible();
+  await expect(soon).toContainText("Buffer won't publish this post until someone approves it.");
+  const later = page.locator("#post-post_bs_approval_later");
+  await expect(later.getByText("Awaiting approval")).toBeVisible();
+  await expect(later.getByRole("heading", { name: /Waiting for approval/ })).toHaveCount(0);
   await expect(page.getByText("Will fail")).toHaveCount(0);
   await expect(page.getByText("Needs attention")).toHaveCount(0);
   await expect(page.locator(".post-list article").first()).toHaveAttribute("data-priority", "blocker");
