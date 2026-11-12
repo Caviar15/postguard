@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { exchangeAuthorizationCode } from "@/auth/oauth";
-import { clearOauthHandoff, readOauthHandoff, writeSession } from "@/auth/session";
+import { clearOauthHandoff, readOauthHandoff, writeSession, writeWatchGrant } from "@/auth/session";
 import { getConfig, redirectUriFor } from "@/config";
 
 export const dynamic = "force-dynamic";
@@ -32,6 +32,10 @@ export async function GET(request: Request) {
       clientSecret: config.clientSecret || undefined,
       redirectUri: redirectUriFor(request, config),
     });
+    if (handoff.watch) {
+      await writeWatchGrant(tokens);
+      return NextResponse.redirect(new URL("/alerts/setup", request.url));
+    }
     await writeSession(tokens);
     return NextResponse.redirect(new URL("/dashboard", request.url));
   } catch (exchangeError) {

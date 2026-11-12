@@ -11,9 +11,10 @@ export async function GET(request: Request) {
   if (!oauthConfigured(config)) {
     return NextResponse.redirect(new URL("/?auth_error=not_configured", request.url));
   }
+  const watch = new URL(request.url).searchParams.get("watch") === "1";
   const state = randomState();
   const verifier = generateCodeVerifier();
-  await writeOauthHandoff({ state, verifier });
+  await writeOauthHandoff({ state, verifier, watch });
   const url = buildAuthorizeUrl({
     clientId: config.clientId,
     redirectUri: redirectUriFor(request, config),

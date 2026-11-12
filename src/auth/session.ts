@@ -11,6 +11,8 @@ export type Session = TokenSet;
 type OauthHandoff = {
   state: string;
   verifier: string;
+  /** Set by /api/auth/start?watch=1. The result is shown once for the alert setup instead of becoming a session. */
+  watch?: boolean;
 };
 
 function cookieOptions(maxAge: number) {
@@ -75,10 +77,40 @@ export async function readOauthHandoff(): Promise<OauthHandoff | null> {
   if (!token) return null;
   const handoff = open<OauthHandoff>(token, sessionSecret);
   if (!handoff?.state || !handoff.verifier) return null;
-  return handoff;
+  return { state: handoff.state, verifier: handoff.verifier, watch: handoff.watch === true };
 }
 
 export async function clearOauthHandoff(): Promise<void> {
   const jar = await cookies();
   jar.set(OAUTH_COOKIE, "", cookieOptions(0));
+}
+
+const WATCH_COOKIE = "pg_watch";
+
+/**
+ * The one-time grant for background alerts. It is a separate Buffer sign-in from the browser
+ * session, because refresh tokens are single use and two holders of one token would break each other.
+ * Kept for 15 minutes, httpOnly, then gone.
+ */
+export async function writeWatchGrant(tokens: TokenSet): Promise<void> {
+  const { sessionSecret } = getConfig();
+  if (!sessionSecret) throw new Error("SESSION_SECRET is not set.");
+  const jar = await cookies();
+  jar.set(WATCH_COOKIE, seal({ refreshToken: tokens.refreshToken }, sessionSecret), cookieOptions(15 * 60));
+}
+
+export async function readWatchGrant(): Promise<{ refreshToken: string | null } | null> {
+  const { sessionSecret } = getConfig();
+  if (!sessionSecret) return null;
+  const jar = await cookies();
+  const value = jar.get(WATCH_COOKIE)?.value;
+  if (!value) return null;
+  const grant = open<{ refreshToken?: string | null }>(value, sessionSecret);
+  if (!grant) return null;
+  return { refreshToken: grant.refreshToken ?? null };
+}
+
+export async function clearWatchGrant(): Promise<void> {
+  const jar = await cookies();
+  jar.set(WATCH_COOKIE, "", cookieOptions(0));
 }
