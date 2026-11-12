@@ -9,17 +9,17 @@ export function hashtags(ctx: RuleContext): Finding[] {
     // A "#section" inside a URL is a fragment, not a hashtag.
     const prose = post.text.replace(urlPattern(), " ");
     const tags = prose.match(/(?<![\p{L}\p{N}_&])#[\p{L}\p{N}_]+/gu) ?? [];
-    if (post.service === "instagram" && tags.length > 30) {
+    if (post.service === "instagram" && tags.length > 5) {
       findings.push(
         makeFinding(ctx, {
           ruleId: "hashtags",
           severity: "high",
-          title: "More than 30 hashtags",
-          detail: `${tags.length} hashtags. Instagram's long-standing cap is 30. Buffer's schema does not expose a hashtag rule, so treat this as a warning and confirm against current Meta limits.`,
+          title: "More than 5 hashtags",
+          detail: `${tags.length} hashtags. Buffer refuses Instagram posts with more than 5 hashtags, so this post would fail when it publishes.`,
           post,
           channelId: post.channelId,
           key: "count",
-          advisory: true,
+          advisory: false,
         }),
       );
     }

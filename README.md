@@ -97,7 +97,7 @@ The Experimental `configuration` query is not called. Limits come from the [char
 | `publishing-error` | High | `Post.error.message` |
 | `notification-post` | Info | `schedulingType: notification` |
 | `placeholder` | High | `TODO`, `TBD`, `FIXME`, lorem, `[link]`, `{{…}}`, `<name>`, `XXX` |
-| `hashtags` | High over 30 on Instagram (advisory). Low for a broken `#` | Instagram’s cap is not a Buffer validation rule, so it stays a warning |
+| `hashtags` | High over 5 on Instagram. Low for a broken `#` | Buffer refuses an Instagram post with more than 5 hashtags |
 
 ## Verified against the published schema, and what is still assumed
 

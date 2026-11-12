@@ -15,17 +15,18 @@ function ctxFor(posts = [makePost()], channels = [makeChannel()], linkResults = 
 describe("hashtag rule", () => {
   const tagsOf = (text: string, service: "instagram" | "linkedin" = "instagram") => hashtags(ctxFor([makePost({ text, service })]));
   it("does not count a URL fragment as a hashtag", () => {
-    const text = Array.from({ length: 30 }, (_, i) => `#t${i}`).join(" ") + " https://example.com/page#section";
-    expect(tagsOf(text).filter((f) => f.title === "More than 30 hashtags")).toHaveLength(0);
+    const text = Array.from({ length: 5 }, (_, i) => `#t${i}`).join(" ") + " https://example.com/page#section";
+    expect(tagsOf(text).filter((f) => f.title === "More than 5 hashtags")).toHaveLength(0);
   });
   it("does not call 'C#' or 'F#' a broken hashtag", () => {
     expect(tagsOf("We rewrote the parser in C# and F# last week").filter((f) => f.title === "Broken hashtag")).toHaveLength(0);
     expect(tagsOf("Our stack: Rust, Go and C#").filter((f) => f.title === "Broken hashtag")).toHaveLength(0);
   });
-  it("still flags a real stray # and a real 31st tag", () => {
+  it("still flags a real stray # and a sixth tag", () => {
     expect(tagsOf("Big news # coming soon").some((f) => f.title === "Broken hashtag")).toBe(true);
-    const thirtyOne = Array.from({ length: 31 }, (_, i) => `#t${i}`).join(" ");
-    expect(tagsOf(thirtyOne).some((f) => f.title === "More than 30 hashtags")).toBe(true);
+    const six = Array.from({ length: 6 }, (_, i) => `#t${i}`).join(" ");
+    expect(tagsOf(six).some((f) => f.title === "More than 5 hashtags")).toBe(true);
+    expect(tagsOf(six).some((f) => f.detail.includes("Buffer refuses Instagram posts with more than 5 hashtags"))).toBe(true);
   });
 });
 

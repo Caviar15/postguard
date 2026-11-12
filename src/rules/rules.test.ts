@@ -289,8 +289,8 @@ describe("schedule, placeholders, and hashtags", () => {
     expect(findings.find((finding) => finding.ruleId === "placeholder")?.severity).toBe("high");
   });
 
-  it("flags more than 30 Instagram hashtags and a broken hash", () => {
-    const tags = Array.from({ length: 31 }, (_, index) => `#dye${index}`).join(" ");
+  it("flags more than 5 Instagram hashtags and a broken hash", () => {
+    const tags = Array.from({ length: 6 }, (_, index) => `#dye${index}`).join(" ");
     const findings = run(
       [makePost({ service: "instagram", text: tags }), makePost({ id: "broken", text: "See # this" })],
       [makeChannel({ service: "instagram" })],
