@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { PRIORITIES, PRIORITY_LABEL, countPriorities, findingsForCard, selectCards } from "@/domain/readiness";
 import type { AltSuggestion, Priority, ScanReport } from "@/domain/types";
-import { CropPreview } from "./CropPreview";
+import { CropNote } from "./CropPreview";
 import { MediaStrip, MissingVideo } from "./MediaStrip";
 import { Brand } from "./Brand";
 import { addCalendarDays, calendarDay, timelineZone } from "@/domain/timeline";
@@ -307,40 +307,44 @@ export function Dashboard({
             const live = liveSuggestions[card.id];
             return (
               <article key={card.id} id={`post-${card.id}`} className={`post-card priority-${card.priority}`} data-priority={card.priority}>
-                <div className="card-visual">
-                  {card.media.length > 0 ? <MediaStrip thumbs={card.media} extra={card.mediaExtra} /> : card.service === "tiktok" ? <MissingVideo /> : null}
-                  {card.preview ? <CropPreview preview={card.preview} /> : card.media.length === 0 && card.service !== "tiktok" ? <div className="crop-spacer" /> : null}
-                </div>
-                <div>
-                  <div className="meta">
-                    <span className={`priority priority-${card.priority}`}>{PRIORITY_LABEL[card.priority]}</span>
-                    <span className="service-line">
-                      <span className="service-mark" aria-hidden="true">{serviceMark(card.service)}</span>
-                      {serviceLabel(card.service)} · {card.channelName}
-                    </span>
-                    <span>{formatDue(card.dueAt)}</span>
-                    {card.status === "draft" ? <span className="pill">Draft</span> : null}
-                    {card.status === "needs_approval" ? <span className="pill">Awaiting approval</span> : null}
-                    {card.status === "sending" ? <span className="pill">Sending</span> : null}
-                  </div>
-                  <h2>{card.channelName}</h2>
-                  {card.excerpt ? <p className="excerpt">{card.excerpt}</p> : null}
-                  {findings.map((finding) => (
-                    <div key={finding.id} className="finding-inline" data-severity={finding.severity}>
-                      <h3>{finding.title}</h3>
-                      <p>{finding.detail}</p>
+                <header className="meta">
+                  <span className={`priority priority-${card.priority}`}>{PRIORITY_LABEL[card.priority]}</span>
+                  <span className="service-line">
+                    <span className="service-mark" aria-hidden="true">{serviceMark(card.service)}</span>
+                    {serviceLabel(card.service)} · {card.channelName}
+                  </span>
+                  <span>{formatDue(card.dueAt)}</span>
+                  {card.status === "draft" ? <span className="pill">Draft</span> : null}
+                  {card.status === "needs_approval" ? <span className="pill">Awaiting approval</span> : null}
+                  {card.status === "sending" ? <span className="pill">Sending</span> : null}
+                </header>
+                <h2>{card.channelName}</h2>
+                <div className={card.media.length > 0 || card.service === "tiktok" ? "card-main has-media" : "card-main"}>
+                  {card.media.length > 0 || card.service === "tiktok" ? (
+                    <div className="card-media">
+                      {card.media.length > 0 ? <MediaStrip thumbs={card.media} extra={card.mediaExtra} /> : <MissingVideo />}
                     </div>
-                  ))}
-                  {findings.length === 0 ? <p className="fine">No problems on this post.</p> : null}
-                  {suggest && card.needsAlt ? (
-                    <Suggestion
-                      recorded={recorded}
-                      live={live}
-                      hasImage={Boolean(card.preview?.src)}
-                      demo={report.mode === "demo"}
-                    />
                   ) : null}
-                  <a href={card.fixUrl} target="_blank" rel="noopener noreferrer">Fix in Buffer</a>
+                  <div className="card-text">
+                    {card.excerpt ? <p className="excerpt">{card.excerpt}</p> : null}
+                    {card.preview ? <CropNote preview={card.preview} /> : null}
+                    {findings.map((finding) => (
+                      <div key={finding.id} className="finding-inline" data-severity={finding.severity}>
+                        <h3>{finding.title}</h3>
+                        <p>{finding.detail}</p>
+                      </div>
+                    ))}
+                    {findings.length === 0 ? <p className="fine">No problems on this post.</p> : null}
+                    {suggest && card.needsAlt ? (
+                      <Suggestion
+                        recorded={recorded}
+                        live={live}
+                        hasImage={Boolean(card.preview?.src)}
+                        demo={report.mode === "demo"}
+                      />
+                    ) : null}
+                    <a href={card.fixUrl} target="_blank" rel="noopener noreferrer">Fix in Buffer</a>
+                  </div>
                 </div>
               </article>
             );
