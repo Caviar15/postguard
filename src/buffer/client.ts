@@ -26,6 +26,16 @@ export class BufferApiError extends Error {
 
 type GraphQLError = { message?: string };
 
+/** Buffer's shortest documented quota window. A 429 with no usable Retry-After would otherwise say "0 seconds". */
+const RATE_LIMIT_WINDOW_SECONDS = 15 * 60;
+
+function retryAfterSeconds(header: string | null): number {
+  if (header == null || header.trim() === "") return RATE_LIMIT_WINDOW_SECONDS;
+  const parsed = Number(header);
+  if (!Number.isFinite(parsed) || parsed <= 0) return RATE_LIMIT_WINDOW_SECONDS;
+  return parsed;
+}
+
 export class BufferClient {
   quota: QuotaWindow[] = [];
   requests = 0;
@@ -74,9 +84,8 @@ export class BufferClient {
 
     if (response.status === 401) throw new BufferAuthError();
     if (response.status === 429) {
-      const retryAfter = Number(response.headers.get("retry-after") ?? "0");
       const message = body?.errors?.[0]?.message ?? "Too many requests from this client.";
-      throw new BufferRateLimitError(Number.isFinite(retryAfter) ? retryAfter : 0, message);
+      throw new BufferRateLimitError(retryAfterSeconds(response.headers.get("retry-after")), message);
     }
     if (!response.ok) {
       throw new BufferApiError(body?.errors?.[0]?.message ?? `Buffer returned HTTP ${response.status}.`);

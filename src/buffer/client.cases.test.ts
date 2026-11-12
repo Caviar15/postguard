@@ -43,5 +43,6 @@ describe("Buffer client", () => {
     const mk = (status: number, headers: Record<string, string> = {}) => (async () => new Response(JSON.stringify({ errors: [{ message: "m" }] }), { status, headers })) as unknown as typeof fetch;
     await expect(new BufferClient("t", mk(401)).query("{a}")).rejects.toMatchObject({ name: "BufferAuthError" });
     await expect(new BufferClient("t", mk(429, { "retry-after": "42" })).query("{a}")).rejects.toMatchObject({ name: "BufferRateLimitError", retryAfter: 42 });
+    await expect(new BufferClient("t", mk(429)).query("{a}")).rejects.toMatchObject({ name: "BufferRateLimitError", retryAfter: 15 * 60 });
   });
 });
