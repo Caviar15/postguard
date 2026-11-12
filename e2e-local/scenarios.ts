@@ -14,5 +14,6 @@ export const scenarios = {
   nullText: { channels: [channel()], postPages: [[post(1), { ...post(2), text: null }, post(3, { channelService: "mysteryservice" })]] },
   noDimensions: { channels: [channel()], postPages: [[post(1, { assets: [img(0, 0, null)] })]] },
   twoOrgs: { orgs: [{ id: "o1", name: "Org One" }, { id: "o2", name: "Org Two" }], channels: [channel()], postPages: [[post(1)]] },
+  lockedChannel: { channels: [channel({ isLocked: true })], postPages: [[post(1)]] },
   oldError: { channels: [channel()], postPages: [[]], undated: [], drafts: [] },
 };

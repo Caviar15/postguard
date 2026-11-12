@@ -156,3 +156,29 @@ test("after Scan again, a browser reload reads the cache instead of rescanning, 
   await expect(page.getByRole("heading", { name: "Queue health" })).toBeVisible();
   expect(mockCalls().length - before, "a reload must not spend Buffer quota").toBe(0);
 });
+
+test("a locked channel's card says why it is Blocker instead of 'No problems on this post'", async ({ page, context }) => {
+  scenario("lockedChannel"); await signIn(context);
+  await page.goto("/dashboard");
+  const card = page.locator(".post-list article").first();
+  await expect(card).toHaveAttribute("data-priority", "blocker");
+  await expect(card).toContainText("Locked channel still has posts queued");
+  await expect(card).not.toContainText("No problems on this post");
+  await expect(page.getByRole("button", { name: /^Blocker \(1\)/ })).toBeVisible();
+  await expect(page.locator(".stats .priority-blocker")).toContainText("1");
+});
+
+// Guard rather than a fix: changing sort must not call Buffer, and a reload keeps the choice.
+test("changing Sort spends no Buffer requests and a reload keeps the chosen sort", async ({ page, context }) => {
+  scenario("normal"); await signIn(context);
+  await page.goto("/dashboard?sort=time");
+  await expect(page.getByRole("button", { name: "Publish time" })).toHaveAttribute("aria-pressed", "true");
+  const before = mockCalls().length;
+  await page.getByRole("button", { name: "Priority", exact: true }).click();
+  await page.getByRole("button", { name: "Publish time" }).click();
+  await page.waitForTimeout(500);
+  expect(mockCalls().length - before, "sort is client-side only").toBe(0);
+  await page.reload();
+  await expect(page.getByRole("button", { name: "Publish time" })).toHaveAttribute("aria-pressed", "true");
+  expect(mockCalls().length - before, "reload reads the cache").toBe(0);
+});

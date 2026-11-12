@@ -10,6 +10,24 @@ export const PRIORITY_LABEL: Record<Priority, string> = {
   ready: "Ready",
 };
 
+export const PRIORITIES: Priority[] = ["blocker", "high", "medium", "low", "ready"];
+
+export function countPriorities(cards: Array<{ priority: Priority }>): Record<Priority, number> {
+  const counts: Record<Priority, number> = { blocker: 0, high: 0, medium: 0, low: 0, ready: 0 };
+  for (const card of cards) counts[card.priority] += 1;
+  return counts;
+}
+
+/** Filter by the post's priority label, then sort. Info is not a filter. */
+export function selectCards<T extends { priority: Priority; dueAt: string | null }>(
+  cards: T[],
+  filter: Priority | "all",
+  sort: "priority" | "time",
+): T[] {
+  const filtered = filter === "all" ? cards : cards.filter((card) => card.priority === filter);
+  return [...filtered].sort(sort === "time" ? compareByTime : compareByPriority);
+}
+
 const RANK: Record<Priority, number> = {
   blocker: 0,
   high: 1,
@@ -55,8 +73,19 @@ export function channelPriority(
   return priority;
 }
 
-export function channelScore(findings: Finding[]): number {
-  const score = findings.reduce((total, finding) => total - PENALTY[finding.severity], 100);
+/**
+ * 100 minus a penalty per finding. A paused queue is a channel flag, not a post finding, but it
+ * labels the channel High, so it costs the High penalty here too. Disconnected and locked channels
+ * already carry blocker findings, so they are not charged twice.
+ */
+/** The findings a post card should show: its own, plus channel-level ones (paused, locked, disconnected). */
+export function findingsForCard(findings: Finding[], card: { id: string; channelId: string }): Finding[] {
+  return findings.filter((finding) => finding.postId === card.id || (finding.postId === null && finding.channelId === card.channelId));
+}
+
+export function channelScore(findings: Finding[], channel?: Pick<Channel, "isQueuePaused">): number {
+  const flagPenalty = channel?.isQueuePaused ? PENALTY.high : 0;
+  const score = findings.reduce((total, finding) => total - PENALTY[finding.severity], 100 - flagPenalty);
   return Math.max(0, Math.min(100, score));
 }
 
@@ -78,17 +107,35 @@ export function riskHeadline(
   return `Next risky post in ${days} day${days === 1 ? "" : "s"}.`;
 }
 
-/** Soonest publish time first. Posts with no time sort after every dated post. */
+/** Soonest publish time first. Posts with no usable time sort after every dated post. */
 export function compareByTime(a: { dueAt: string | null }, b: { dueAt: string | null }): number {
-  if (a.dueAt && b.dueAt) return a.dueAt < b.dueAt ? -1 : a.dueAt > b.dueAt ? 1 : 0;
-  if (a.dueAt) return -1;
-  if (b.dueAt) return 1;
+  const left = instant(a.dueAt);
+  const right = instant(b.dueAt);
+  if (left !== null && right !== null) return left - right;
+  if (left !== null) return -1;
+  if (right !== null) return 1;
   return 0;
 }
 
-/** Blocker, then High, Medium, Low, Ready. Ties break by publish time. */
-export function compareByPriority(a: { priority: Priority; dueAt: string | null }, b: { priority: Priority; dueAt: string | null }): number {
+function instant(value: string | null): number | null {
+  if (!value) return null;
+  const time = Date.parse(value);
+  return Number.isNaN(time) ? null : time;
+}
+
+/** How much is at stake on one post: the sum of its finding penalties. Info costs nothing. */
+export function postRisk(findings: Finding[]): number {
+  return findings.reduce((total, finding) => total + PENALTY[finding.severity], 0);
+}
+
+/** Blocker, then High, Medium, Low, Ready. Within a priority the heavier post first, then the earlier publish time. */
+export function compareByPriority(
+  a: { priority: Priority; dueAt: string | null; risk?: number },
+  b: { priority: Priority; dueAt: string | null; risk?: number },
+): number {
   const rank = RANK[a.priority] - RANK[b.priority];
   if (rank !== 0) return rank;
+  const risk = (b.risk ?? 0) - (a.risk ?? 0);
+  if (risk !== 0) return risk;
   return compareByTime(a, b);
 }

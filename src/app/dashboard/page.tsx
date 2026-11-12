@@ -6,6 +6,8 @@ import { nextAuthStep } from "@/auth/flow";
 import { readSession } from "@/auth/session";
 import { BufferAuthError, BufferRateLimitError } from "@/buffer/client";
 import { clampDays, getConfig, oauthConfigured } from "@/config";
+import { PRIORITIES } from "@/domain/readiness";
+import type { Priority } from "@/domain/types";
 import { cacheKey, readCachedReport, writeCachedReport } from "@/scan/cache";
 import { scanLive } from "@/scan/live";
 
@@ -15,11 +17,13 @@ export const maxDuration = 60;
 export default async function DashboardPage({
   searchParams,
 }: {
-  searchParams: Promise<{ days?: string; refresh?: string; org?: string; retried?: string; drafts?: string }>;
+  searchParams: Promise<{ days?: string; refresh?: string; sort?: string; filter?: string; org?: string; retried?: string; drafts?: string }>;
 }) {
   const params = await searchParams;
   const days = clampDays(params.days, getConfig().windowDays);
   const includeDrafts = params.drafts === "1";
+  const initialSort = params.sort === "time" ? "time" : "priority";
+  const initialFilter = PRIORITIES.includes(params.filter as Priority) ? (params.filter as Priority) : "all";
   const session = await readSession();
   if (!session) return <ConnectPrompt expired={false} />;
 
@@ -37,6 +41,8 @@ export default async function DashboardPage({
           report={cached}
           basePath="/dashboard"
           sessionNote={sessionNote(session.refreshToken)}
+          initialSort={initialSort}
+          initialFilter={initialFilter}
         />
       );
     }
@@ -70,7 +76,15 @@ export default async function DashboardPage({
   // 200 shell is already sent and redirect() would be a 1s meta refresh. The
   // dashboard removes the flag with history.replaceState after this render, so a
   // reload reads the cache.
-  return <Dashboard report={report} basePath="/dashboard" sessionNote={sessionNote(session.refreshToken)} />;
+  return (
+    <Dashboard
+      report={report}
+      basePath="/dashboard"
+      sessionNote={sessionNote(session.refreshToken)}
+      initialSort={initialSort}
+      initialFilter={initialFilter}
+    />
+  );
 }
 
 function dashboardPath(days: number, org: string | undefined, drafts: boolean): string {

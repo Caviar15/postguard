@@ -155,6 +155,8 @@ export type PostCard = {
   timeZone: string | null;
   excerpt: string;
   priority: Priority;
+  /** Sum of the post's finding penalties. Orders posts inside one priority. */
+  risk: number;
   fixUrl: string;
   needsAlt: boolean;
   preview: CropPreview | null;

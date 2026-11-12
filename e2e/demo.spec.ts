@@ -32,9 +32,30 @@ test("demo mode shows the queue health report", async ({ page }) => {
   const fix = page.getByRole("link", { name: "Fix in Buffer" }).first();
   await expect(fix).toHaveAttribute("href", /https:\/\/publish\.buffer\.com\/channels\//);
 
+  await expect(page.getByRole("button", { name: /^Info/ })).toHaveCount(0);
+  await expect(page.locator(".stats .stat.info")).toHaveCount(0);
+  const blockerCount = await page.locator(".post-list article[data-priority='blocker']").count();
+  await expect(page.getByRole("button", { name: new RegExp(`^Blocker \\(${blockerCount}\\)`) })).toBeVisible();
+  await expect(page.locator(".stats .priority-blocker")).toContainText(String(blockerCount));
+
+  await page.getByRole("button", { name: /^Ready/ }).click();
+  await expect(page).toHaveURL(/filter=ready/);
+  await expect(page).not.toHaveURL(/refresh=1/);
+  const readyCards = page.locator(".post-list article");
+  await expect(readyCards.first()).toHaveAttribute("data-priority", "ready");
+  const readyPriorities = await readyCards.evaluateAll((nodes) => nodes.map((node) => node.getAttribute("data-priority")));
+  expect(readyPriorities.every((priority) => priority === "ready")).toBe(true);
+  await page.getByRole("button", { name: "Publish time" }).click();
+  await expect(page).toHaveURL(/sort=time/);
+  await expect(page).toHaveURL(/filter=ready/);
+  await expect(readyCards.first()).toHaveAttribute("data-priority", "ready");
+
+  await page.getByRole("button", { name: "Priority", exact: true }).click();
   await page.getByRole("button", { name: /^High/ }).click();
   await expect(page.getByRole("heading", { name: "Publish time has passed" })).toBeVisible();
   await expect(page.locator(".post-list").getByText("The lookbook link is still the old one")).toHaveCount(0);
+  const highPriorities = await page.locator(".post-list article").evaluateAll((nodes) => nodes.map((node) => node.getAttribute("data-priority")));
+  expect(highPriorities.every((priority) => priority === "high")).toBe(true);
 
   await page.getByRole("button", { name: "All" }).click();
   await expect(page.getByRole("heading", { name: "Dead link" }).first()).toBeVisible();
