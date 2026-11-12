@@ -13,6 +13,10 @@ export class ResendMailer implements Mailer {
     private readonly fetchImpl: typeof fetch = fetch,
   ) {}
 
+  configured(): boolean {
+    return Boolean(this.options.apiKey);
+  }
+
   async send(message: OutgoingMessage, { idempotencyKey }: { idempotencyKey: string }): Promise<{ id: string }> {
     if (!this.options.apiKey) throw new Error("RESEND_API_KEY is not set.");
     if (!message.to) throw new Error("ALERT_EMAIL_TO is not set.");

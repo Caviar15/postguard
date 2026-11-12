@@ -42,6 +42,8 @@ export type OutgoingMessage = {
 };
 
 export interface Mailer {
+  /** False when no provider key is set. Optional so test doubles need not implement it. */
+  configured?(): boolean;
   /** The idempotency key is stable for the same subscriber and the same set of item keys. */
   send(message: OutgoingMessage, options: { idempotencyKey: string }): Promise<{ id: string }>;
 }

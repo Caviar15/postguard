@@ -1,6 +1,7 @@
 import { createHash, timingSafeEqual } from "node:crypto";
 import { BufferRateLimitError } from "@/buffer/client";
 import type { ScanReport } from "@/domain/types";
+import { UnreadableGrantError } from "./crypto";
 import { escapeHtml, renderMessage } from "./message";
 import { horizonFor, selectAlertItems } from "./select";
 import type { AlertItem, RunDeps, RunResult } from "./types";
@@ -29,6 +30,11 @@ export async function runAlerts(deps: RunDeps, options: { dryRun?: boolean } = {
     release = await deps.store.acquireLock("alerts-run", RUN_LOCK_MS);
     if (!release) return { ...result, status: "skipped-locked" };
     const subscribers = await deps.store.listSubscribers();
+    // Email that cannot go out must fail loudly: a green cron that never delivers is the worst outcome.
+    if (!options.dryRun && subscribers.some((s) => !s.unsubscribed) && deps.mailer.configured?.() === false) {
+      deps.log.error("alerts: email delivery is not configured (RESEND_API_KEY)");
+      return { ...result, status: "failed", errors: ["email delivery is not configured"] };
+    }
     let succeeded = 0;
     for (const subscriber of subscribers) {
       if (subscriber.unsubscribed) continue;
@@ -96,7 +102,8 @@ export async function runAlerts(deps: RunDeps, options: { dryRun?: boolean } = {
     return result;
   } catch (error) {
     deps.log.error("alerts: run crashed", { error: errorName(error) });
-    return { ...result, status: "failed", errors: [...result.errors, "the run crashed"] };
+    const reason = error instanceof UnreadableGrantError ? "the saved alert grant cannot be read; turn alerts on again at /alerts/setup" : "the run crashed";
+    return { ...result, status: "failed", errors: [...result.errors, reason] };
   } finally {
     if (release) await release().catch(() => undefined);
   }
@@ -128,7 +135,7 @@ export async function handleCron(request: Request, deps: RunDeps): Promise<Respo
   const secret = secretConfigured(deps.env);
   if (!secret) {
     deps.log.error("alerts: CRON_SECRET is not set (or shorter than 16 characters), so the cron route is closed");
-    return new Response(JSON.stringify({ error: "CRON_SECRET is not configured" }), { status: 500, headers: JSON_HEADERS });
+    return new Response(JSON.stringify({ error: "alerts are not configured" }), { status: 500, headers: JSON_HEADERS });
   }
   if (!hasSecret(request, secret)) {
     return new Response(JSON.stringify({ error: "unauthorized" }), { status: 401, headers: JSON_HEADERS });
