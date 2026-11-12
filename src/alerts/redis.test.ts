@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { open } from "@/auth/seal";
+import { openGrant } from "./crypto";
 import { FakeRedis } from "./fake-redis";
 import { OWNER_ID, RedisAlertStore, UpstashRedis, redisFromEnv } from "./redis";
 
@@ -53,8 +53,8 @@ describe("alert store on Redis", () => {
     expect(raw).not.toContain("AT-plain-secret");
     expect(raw).not.toContain("RT-plain-secret");
     const sealed = [...redis.data.values()][0]!.value;
-    expect(open(sealed, SECRET)).toMatchObject({ id: OWNER_ID, refreshToken: "RT-plain-secret" });
-    expect(open(sealed, "another-secret")).toBeNull();
+    expect(openGrant(sealed, SECRET)).toMatchObject({ id: OWNER_ID, refreshToken: "RT-plain-secret" });
+    expect(openGrant(sealed, "another-secret")).toBeNull();
   });
 
   it("lists the owner with the email and zone from settings, and an unguessable unsubscribe token", async () => {

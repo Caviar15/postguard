@@ -1,5 +1,5 @@
 import { createHash, randomBytes, timingSafeEqual } from "node:crypto";
-import { open, seal } from "@/auth/seal";
+import { openGrant, sealGrant, UnreadableGrantError } from "./crypto";
 import type { AlertStore, Release, Subscriber } from "./types";
 
 /** The only thing the store needs from Redis. Upstash's REST API takes the command as a JSON array. */
@@ -87,11 +87,14 @@ export class RedisAlertStore implements AlertStore {
   async readSubscriber(id = OWNER_ID): Promise<StoredSubscriber | null> {
     const value = await this.redis.command(["GET", subKey(id)]);
     if (typeof value !== "string") return null;
-    return open<StoredSubscriber>(value, this.key());
+    const record = openGrant<StoredSubscriber>(value, this.key());
+    // A value that is there but cannot be opened is NOT "no grant": say so, never act as if alerts were off.
+    if (!record) throw new UnreadableGrantError();
+    return record;
   }
 
   async writeSubscriber(record: StoredSubscriber): Promise<void> {
-    await this.redis.command(["SET", subKey(record.id), seal(record, this.key())]);
+    await this.redis.command(["SET", subKey(record.id), sealGrant(record, this.key())]);
   }
 
   /** The owner turns alerts on: a new grant, a new unsubscribe token, and a clean slate. */
@@ -114,7 +117,15 @@ export class RedisAlertStore implements AlertStore {
 
   /** The owner turns alerts off from the setup page. Same effect as the unsubscribe link. */
   async disable(): Promise<void> {
-    const record = await this.readSubscriber();
+    let record: StoredSubscriber | null;
+    try {
+      record = await this.readSubscriber();
+    } catch (error) {
+      if (!(error instanceof UnreadableGrantError)) throw error;
+      // Nothing in it can be used any more; the owner asked to turn alerts off, so remove it.
+      await this.redis.command(["DEL", subKey(OWNER_ID)]);
+      return;
+    }
     if (record) await this.writeSubscriber(wipe(record));
   }
 
