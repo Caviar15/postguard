@@ -2,16 +2,20 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { PRIORITY_LABEL, compareByPriority, compareByTime } from "@/domain/readiness";
-import { SEVERITY_LABEL, type AltSuggestion, type ScanReport, type Severity } from "@/domain/types";
+import { PRIORITIES, PRIORITY_LABEL, countPriorities, selectCards } from "@/domain/readiness";
+import type { AltSuggestion, Priority, ScanReport } from "@/domain/types";
 import { CropPreview } from "./CropPreview";
 import { Brand } from "./Brand";
 import { addCalendarDays, calendarDay, timelineZone } from "@/domain/timeline";
 import { formatDue, serviceLabel } from "./service";
 
-const SEVERITIES: Severity[] = ["blocker", "high", "medium", "low", "info"];
 const DAY_CHOICES = [3, 7, 14];
 type SortKey = "priority" | "time";
+type FilterKey = Priority | "all";
+
+function isPriority(value: string | null): value is Priority {
+  return PRIORITIES.includes(value as Priority);
+}
 
 type LiveSuggestion =
   | { state: "loading" }
@@ -27,7 +31,7 @@ export function Dashboard({
   basePath: string;
   sessionNote?: string | null;
 }) {
-  const [filter, setFilter] = useState<Severity | "all">("all");
+  const [filter, setFilter] = useState<FilterKey>("all");
   const [sort, setSort] = useState<SortKey>("priority");
   const [suggest, setSuggest] = useState(false);
   const [liveSuggestions, setLiveSuggestions] = useState<Record<string, LiveSuggestion>>({});
@@ -42,20 +46,33 @@ export function Dashboard({
   // reload, back/forward or a copied link reads the cache instead of spending another scan of the shared quota.
   useEffect(() => {
     const url = new URL(window.location.href);
-    const value = url.searchParams.get("sort");
-    if (value === "time" || value === "priority") setSort(value);
+    const sortValue = url.searchParams.get("sort");
+    setSort(sortValue === "time" ? "time" : "priority");
+    const filterValue = url.searchParams.get("filter");
+    setFilter(isPriority(filterValue) ? filterValue : "all");
     if (url.searchParams.get("refresh") !== "1") return;
     url.searchParams.delete("refresh");
     window.history.replaceState(window.history.state, "", `${url.pathname}${url.search}${url.hash}`);
   }, [report]);
 
-  function chooseSort(next: SortKey) {
-    setSort(next);
+  function writeView(nextSort: SortKey, nextFilter: FilterKey) {
     const url = new URL(window.location.href);
     url.searchParams.delete("refresh");
-    if (next === "priority") url.searchParams.delete("sort");
-    else url.searchParams.set("sort", next);
+    if (nextSort === "priority") url.searchParams.delete("sort");
+    else url.searchParams.set("sort", nextSort);
+    if (nextFilter === "all") url.searchParams.delete("filter");
+    else url.searchParams.set("filter", nextFilter);
     window.history.replaceState(window.history.state, "", `${url.pathname}${url.search}${url.hash}`);
+  }
+
+  function chooseSort(next: SortKey) {
+    setSort(next);
+    writeView(next, filter);
+  }
+
+  function chooseFilter(next: FilterKey) {
+    setFilter(next);
+    writeView(sort, next);
   }
 
   useEffect(() => {
@@ -103,14 +120,8 @@ export function Dashboard({
     };
   }, [suggest, report]);
 
-  const visibleCards = useMemo(() => {
-    const filtered =
-      filter === "all"
-        ? report.cards
-        : report.cards.filter((card) => report.findings.some((finding) => finding.postId === card.id && finding.severity === filter));
-    const compare = sort === "time" ? compareByTime : compareByPriority;
-    return [...filtered].sort(compare);
-  }, [filter, report.cards, report.findings, sort]);
+  const priorityCounts = useMemo(() => countPriorities(report.cards), [report.cards]);
+  const visibleCards = useMemo(() => selectCards(report.cards, filter, sort), [filter, report.cards, sort]);
 
   const axis = timelineZone(report.cards.map((card) => card.timeZone));
   const days = timelineDays(report.scannedAt, Math.min(report.windowDays, 7), axis.zone);
@@ -156,10 +167,10 @@ export function Dashboard({
         </div>
         <p className="lede" data-testid="summary">{report.headline}</p>
         {sessionNote ? <p className="banner">{sessionNote}</p> : null}
-        <div className="stats" aria-label="Findings by severity">
-          {SEVERITIES.map((severity) => (
-            <span key={severity} className={`stat ${severity}`}>
-              <strong>{report.totals[severity]}</strong> {SEVERITY_LABEL[severity].toLowerCase()}
+        <div className="stats" aria-label="Posts by priority">
+          {PRIORITIES.map((priority) => (
+            <span key={priority} className={`stat priority-${priority}`}>
+              <strong>{priorityCounts[priority]}</strong> {PRIORITY_LABEL[priority].toLowerCase()}
             </span>
           ))}
           <span className="stat"><strong>{report.postsScanned}</strong> posts</span>
@@ -239,15 +250,28 @@ export function Dashboard({
             </div>
           </section>
         ) : null}
-        <div className="filters" role="toolbar" aria-label="Filter by severity">
-          <button type="button" className="button small secondary" aria-pressed={filter === "all"} onClick={() => setFilter("all")}>All</button>
-          {SEVERITIES.map((severity) => (
-            <button key={severity} type="button" className="button small secondary" aria-pressed={filter === severity} onClick={() => setFilter(severity)}>
-              {SEVERITY_LABEL[severity]} ({report.totals[severity]})
-            </button>
-          ))}
+        <div className="filters" role="toolbar" aria-label="Filter by priority">
+          <button type="button" className="button small secondary" aria-pressed={filter === "all"} onClick={() => chooseFilter("all")}>All</button>
+          {PRIORITIES.map((priority) => {
+            const count = priorityCounts[priority];
+            return (
+              <button
+                key={priority}
+                type="button"
+                className={`button small secondary filter-${priority}${count === 0 ? " is-empty" : ""}`}
+                aria-pressed={filter === priority}
+                aria-disabled={count === 0}
+                onClick={() => {
+                  if (count === 0) return;
+                  chooseFilter(priority);
+                }}
+              >
+                {PRIORITY_LABEL[priority]} ({count})
+              </button>
+            );
+          })}
         </div>
-        {visibleCards.length === 0 && report.postsScanned > 0 ? <p>Nothing at this severity in the current window.</p> : null}
+        {visibleCards.length === 0 && report.postsScanned > 0 ? <p>No posts with this priority.</p> : null}
         <div className="post-list">
           {visibleCards.map((card) => {
             const findings = report.findings.filter((finding) => finding.postId === card.id);

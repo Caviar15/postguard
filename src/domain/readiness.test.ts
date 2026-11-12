@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { makeChannel, makePost } from "@/test/factory";
 import { cropFrame, ratioBand } from "@/rules/crop";
-import { channelPriority, channelScore, compareByPriority, compareByTime, postPriority, riskHeadline } from "./readiness";
+import { channelPriority, channelScore, compareByPriority, compareByTime, countPriorities, postPriority, riskHeadline, selectCards } from "./readiness";
 
 describe("crop preview geometry", () => {
   it("hatches the top and bottom of a portrait image on an Instagram feed post", () => {
@@ -72,6 +72,28 @@ describe("priority", () => {
       "high-late",
       "blocker-none",
     ]);
+  });
+
+  it("counts posts by the same priority label the card shows, including a zero", () => {
+    const cards = [
+      { priority: "blocker" as const },
+      { priority: "blocker" as const },
+      { priority: "high" as const },
+      { priority: "ready" as const },
+    ];
+    expect(countPriorities(cards)).toEqual({ blocker: 2, high: 1, medium: 0, low: 0, ready: 1 });
+  });
+
+  it("filters to one label and then sorts", () => {
+    const cards = [
+      { id: "ready", priority: "ready" as const, dueAt: "2026-11-12T08:00:00.000Z" },
+      { id: "high-late", priority: "high" as const, dueAt: "2026-11-13T09:00:00.000Z" },
+      { id: "high-soon", priority: "high" as const, dueAt: "2026-11-12T10:00:00.000Z" },
+      { id: "low", priority: "low" as const, dueAt: "2026-11-12T09:00:00.000Z" },
+    ];
+    expect(selectCards(cards, "ready", "priority").map((card) => card.id)).toEqual(["ready"]);
+    expect(selectCards(cards, "high", "time").map((card) => card.id)).toEqual(["high-soon", "high-late"]);
+    expect(selectCards(cards, "all", "priority").map((card) => card.id)).toEqual(["high-soon", "high-late", "low", "ready"]);
   });
 });
 

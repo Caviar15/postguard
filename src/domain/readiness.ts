@@ -10,6 +10,24 @@ export const PRIORITY_LABEL: Record<Priority, string> = {
   ready: "Ready",
 };
 
+export const PRIORITIES: Priority[] = ["blocker", "high", "medium", "low", "ready"];
+
+export function countPriorities(cards: Array<{ priority: Priority }>): Record<Priority, number> {
+  const counts: Record<Priority, number> = { blocker: 0, high: 0, medium: 0, low: 0, ready: 0 };
+  for (const card of cards) counts[card.priority] += 1;
+  return counts;
+}
+
+/** Filter by the post's priority label, then sort. Info is not a filter. */
+export function selectCards<T extends { priority: Priority; dueAt: string | null }>(
+  cards: T[],
+  filter: Priority | "all",
+  sort: "priority" | "time",
+): T[] {
+  const filtered = filter === "all" ? cards : cards.filter((card) => card.priority === filter);
+  return [...filtered].sort(sort === "time" ? compareByTime : compareByPriority);
+}
+
 const RANK: Record<Priority, number> = {
   blocker: 0,
   high: 1,
