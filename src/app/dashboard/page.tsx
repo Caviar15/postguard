@@ -59,7 +59,7 @@ export default async function DashboardPage({
       redirect(`/api/auth/refresh?next=${encodeURIComponent(retryPath)}`);
     }
     const message = error instanceof BufferRateLimitError
-      ? `Buffer’s shared rate limit is exhausted. Retry after ${error.retryAfter} seconds. The demo queue does not use quota.`
+      ? `Buffer’s shared rate limit is exhausted. Try again in ${error.waitLabel}. The demo queue does not use quota.`
       : error instanceof Error
         ? error.message
         : "The scan failed.";
