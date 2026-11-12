@@ -104,11 +104,30 @@ export function Dashboard({
             </form>
           )}
         </div>
+        <p className="proof">
+          {report.mode === "demo"
+            ? "Read-only · 2 scopes · sample data, not a live queue"
+            : "Read-only · 2 scopes · live Buffer API"}
+        </p>
       </header>
       <main id="main" className="wrap">
         <p className="kicker">{report.organization.name}</p>
         <h1>Queue health</h1>
         <p className="summary" data-testid="risk">{report.riskHeadline}</p>
+        <div className="channel-row">
+          {report.channels.map((channel) => (
+            <div key={channel.id} className={`channel-chip readiness-${channel.readiness}`}>
+              <strong>{channel.name}</strong>
+              <span>
+                {serviceLabel(channel.service)} · {channel.postCount} {channel.postCount === 1 ? "post" : "posts"} · score {channel.score}
+              </span>
+              <span className={`readiness readiness-${channel.readiness}`}>{READINESS_LABEL[channel.readiness]}</span>
+              {channel.isQueuePaused ? <span className="flag">Paused</span> : null}
+              {channel.isDisconnected ? <span className="flag">Disconnected</span> : null}
+              {channel.isLocked ? <span className="flag">Locked</span> : null}
+            </div>
+          ))}
+        </div>
         <p className="lede" data-testid="summary">{report.headline}</p>
         {sessionNote ? <p className="banner">{sessionNote}</p> : null}
         <div className="stats" aria-label="Findings by severity">
@@ -145,20 +164,6 @@ export function Dashboard({
             Suggestions are advisory. PostGuard does not edit the post. Demo suggestions are recorded examples and do not call a model.
           </p>
         ) : null}
-        <div className="channel-row">
-          {report.channels.map((channel) => (
-            <div key={channel.id} className={`channel-chip readiness-${channel.readiness}`}>
-              <strong>{channel.name}</strong>
-              <span>
-                {serviceLabel(channel.service)} · {channel.postCount} {channel.postCount === 1 ? "post" : "posts"} · score {channel.score}
-              </span>
-              <span className={`readiness readiness-${channel.readiness}`}>{READINESS_LABEL[channel.readiness]}</span>
-              {channel.isQueuePaused ? <span className="flag">Paused</span> : null}
-              {channel.isDisconnected ? <span className="flag">Disconnected</span> : null}
-              {channel.isLocked ? <span className="flag">Locked</span> : null}
-            </div>
-          ))}
-        </div>
         <section aria-labelledby="timeline-heading">
           <h2 id="timeline-heading">Upcoming</h2>
           <p className="fine">Days in {axis.label}</p>

@@ -283,6 +283,17 @@ export async function buildDemoReport(now = new Date(), windowDays = 7, includeD
   report.cards = report.cards.map((card, index) =>
     card.preview?.src ? { ...card, preview: { ...card.preview, src: placeholderImage(card.preview.width, card.preview.height, (index * 47 + 20) % 360) } } : card,
   );
+  // Lead with the dead shop link, then the TODO, so the first screen is a real failure.
+  // Due times stay as scheduled; only the demo's card order changes.
+  const lead = ["post_ig_comments", "post_tw_todo"];
+  report.cards.sort((a, b) => {
+    const ai = lead.indexOf(a.id);
+    const bi = lead.indexOf(b.id);
+    const ar = ai === -1 ? lead.length : ai;
+    const br = bi === -1 ? lead.length : bi;
+    if (ar !== br) return ar - br;
+    return (a.dueAt ?? "9999").localeCompare(b.dueAt ?? "9999");
+  });
   return report;
 }
 

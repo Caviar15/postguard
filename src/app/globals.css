@@ -59,7 +59,15 @@ a:hover { color: var(--stamp); }
   align-items: center;
   justify-content: space-between;
   gap: 16px;
+  flex-wrap: wrap;
   padding: 22px 0 8px;
+}
+.proof {
+  width: 100%;
+  margin: 0;
+  color: var(--ink-soft);
+  font-size: 0.78rem;
+  letter-spacing: 0.01em;
 }
 .brand { display: flex; align-items: center; gap: 12px; text-decoration: none; color: inherit; }
 .mark {
@@ -260,6 +268,7 @@ h1 {
   border-radius: 12px;
   padding: 8px 10px;
   min-width: 140px;
+  max-width: 100%;
 }
 .channel-chip strong { display: block; }
 .channel-chip span { color: var(--ink-soft); font-size: 0.85rem; }

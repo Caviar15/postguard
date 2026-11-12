@@ -29,6 +29,19 @@ describe("dead-link", () => {
     ]);
     expect(findings.map((finding) => finding.ruleId)).toContain("dead-link");
     expect(findings.find((finding) => finding.ruleId === "dead-link")?.severity).toBe("blocker");
+    expect(findings.find((finding) => finding.ruleId === "dead-link")?.detail).not.toContain("Re-checked");
+  });
+
+  it("says a link was re-checked just now only when this scan fetched it", () => {
+    const fresh = run([post], [makeChannel({ service: "twitter" })], [
+      { url, outcome: "dead", status: 404, hops: 0, finalUrl: url, detail: "HTTP 404.", checkedAt: NOW.toISOString() },
+    ]);
+    expect(fresh.find((finding) => finding.ruleId === "dead-link")?.detail).toContain("Re-checked just now.");
+    const cached = run([post], [makeChannel({ service: "twitter" })], [
+      { url, outcome: "dead", status: 404, hops: 0, finalUrl: url, detail: "HTTP 404.", checkedAt: new Date(NOW.getTime() - 60 * 60_000).toISOString() },
+    ]);
+    expect(cached.find((finding) => finding.ruleId === "dead-link")?.detail).toContain("Re-checked 1 h ago.");
+    expect(cached.find((finding) => finding.ruleId === "dead-link")?.detail).not.toContain("just now");
   });
 
   it("treats a long chain, a soft 404, and http as medium, and 403 as unverified", () => {

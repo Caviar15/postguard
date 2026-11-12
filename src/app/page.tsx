@@ -40,6 +40,11 @@ export default async function HomePage({
           <Link href="/privacy">Privacy</Link>
           <Link className="button secondary small" href="/demo">Demo</Link>
         </div>
+        <p className="proof">
+          {configured
+            ? "Read-only · 2 scopes · live Buffer API"
+            : "Read-only · 2 scopes · demo uses sample data"}
+        </p>
       </header>
       <main id="main" className="wrap">
         {params.auth_error ? (

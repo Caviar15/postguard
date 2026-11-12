@@ -135,7 +135,15 @@ export async function checkUrl(
   if (!isHttpUrl(url)) {
     return result(url, "dead", null, 0, null, "Not an http(s) URL.");
   }
+  return { ...(await checkUrlLive(url, fetchImpl, timeoutMs, lookupImpl)), checkedAt: new Date().toISOString() };
+}
 
+async function checkUrlLive(
+  url: string,
+  fetchImpl: typeof fetch,
+  timeoutMs: number,
+  lookupImpl: LookupFn,
+): Promise<LinkStatus> {
   let current = url;
   let hops = 0;
   const seen = new Set<string>([current]);
