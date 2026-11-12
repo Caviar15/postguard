@@ -73,10 +73,13 @@ describe("demo platform switch", () => {
       "Folded walnut-dyed linen on a studio table",
       "Close view of the walnut dye along the hem",
     ]);
-    expect(instagram.cards.find((card) => card.id === "ig_dead")?.media).toEqual([]);
+    expect(instagram.cards.every((card) => card.media.length > 0)).toBe(true);
+    expect(instagram.cards.find((card) => card.id === "ig_dead")?.media[0]?.src).toBe("/demo/ig-grid.jpg");
+    expect(instagram.headline).toBe("Next 7 days: 1 dead link, 1 missing alt text, 1 other risk.");
 
     const tiktok = await buildDemoReport(NOW, 7, false, "tiktok");
     expect(tiktok.cards.find((card) => card.id === "tt_novideo")?.media).toEqual([]);
+    expect(tiktok.cards.filter((card) => card.id !== "tt_novideo").every((card) => card.media.length > 0)).toBe(true);
     expect(tiktok.cards.find((card) => card.id === "tt_ready")?.media).toEqual([
       { src: "/demo/tiktok-ready.jpg", alt: "", kind: "video" },
     ]);
@@ -88,16 +91,28 @@ describe("demo platform switch", () => {
       alt: "Linen shirts on a rack in the studio",
       kind: "image",
     });
-    expect(x.cards.filter((card) => card.id !== "x_ready").every((card) => card.media.length === 0)).toBe(true);
+    expect(x.cards.filter((card) => card.media.length === 0).map((card) => card.id)).toEqual(["x_later"]);
+    expect(x.headline).toBe("Next 7 days: 2 other risks.");
 
     const linkedin = await buildDemoReport(NOW, 7, false, "linkedin");
     expect(linkedin.cards.find((card) => card.id === "li_alt")?.media).toEqual([
       { src: "/demo/li-desk.jpg", alt: "", kind: "image" },
     ]);
+    expect(linkedin.cards.filter((card) => card.media.length === 0).map((card) => card.id)).toEqual(["li_later"]);
+    expect(linkedin.headline).toBe("Next 7 days: 1 missing alt text, 2 other risks.");
 
     const facebook = await buildDemoReport(NOW, 7, false, "facebook");
     expect(facebook.cards.find((card) => card.id === "fb_weak")?.media[0]?.alt).toBe("image");
     expect(facebook.cards.find((card) => card.id === "fb_alt")?.media[0]?.alt).toBe("");
-    expect(facebook.cards.find((card) => card.id === "fb_ready")?.media).toEqual([]);
+    expect(facebook.cards.find((card) => card.id === "fb_ready")?.media[0]?.src).toBe("/demo/fb-open.jpg");
+    expect(facebook.cards.filter((card) => card.media.length === 0).map((card) => card.id)).toEqual(["fb_later"]);
+    expect(facebook.headline).toBe("Next 7 days: 1 dead link, 1 missing alt text, 1 other risk.");
+    expect(tiktok.headline).toBe("Next 7 days: 1 dead link, 2 other risks.");
+
+    const quiet = all.cards.filter((card) => card.media.length === 0).map((card) => card.id).sort();
+    expect(quiet).toEqual(["post_bs_approval_later", "post_tw_todo"]);
+    const pin = all.cards.find((card) => card.id === "post_pin_signed");
+    expect(pin?.media).toHaveLength(1);
+    expect(all.cards.filter((card) => card.service === "instagram").every((card) => card.media.length > 0)).toBe(true);
   });
 });

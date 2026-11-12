@@ -375,6 +375,19 @@ code { font-size: 0.9em; background: #f6f1e7; padding: 1px 5px; border-radius: 4
 .card-visual { min-width: 0; display: grid; gap: 8px; align-content: start; }
 .media-strip { display: flex; gap: 6px; min-width: 0; }
 .media-frame { position: relative; flex: 1 1 0; min-width: 0; aspect-ratio: 4 / 5; border-radius: 12px; overflow: hidden; background: #e7dcc8; }
+.media-missing {
+  aspect-ratio: 4 / 5;
+  min-width: 0;
+  border-radius: 12px;
+  border: 1px dashed #8a7b68;
+  background: #e7dcc8;
+  display: grid;
+  place-items: center;
+  text-align: center;
+  padding: 12px;
+  color: var(--ink);
+  font-size: 0.85rem;
+}
 .media-frame img, .media-fallback { width: 100%; max-width: 100%; height: 100%; object-fit: cover; display: block; }
 .media-fallback { background: linear-gradient(160deg, #c4b49a, #8f2d2a 140%); }
 .play-badge {

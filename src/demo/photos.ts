@@ -30,5 +30,8 @@ export const DEMO_PHOTOS: Record<string, string> = {
 
 /** Swap a fixture media URL for the shipped file. Anything else is left as-is. */
 export function demoPhoto(src: string): string {
-  return DEMO_PHOTOS[src] ?? src;
+  const mapped = DEMO_PHOTOS[src];
+  if (mapped) return mapped;
+  const file = src.match(/^https:\/\/cdn\.northwind\.example\/([^/?#]+)$/);
+  return file ? `/demo/${file[1]}` : src;
 }

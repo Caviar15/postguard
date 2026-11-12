@@ -107,6 +107,7 @@ export function demoPosts(now: Date): Post[] {
       text: overLimitLinkedIn(),
       hasFirstCommentField: true,
       firstComment: "Full notes are on the journal.",
+      assets: [image("https://cdn.northwind.example/all-li-notes.jpg", 1200, 800, "Open notebook of dye notes beside a walnut vat")],
     }),
     post({
       id: "post_li_dup",
@@ -116,6 +117,7 @@ export function demoPosts(now: Date): Post[] {
       text: shared,
       hasFirstCommentField: true,
       firstComment: "",
+      assets: [image("https://cdn.northwind.example/all-li-lot.jpg", 1200, 800, "Folded linen from the new dye lot on the cutting table")],
     }),
     post({
       id: "post_tw_dup",
@@ -123,6 +125,7 @@ export function demoPosts(now: Date): Post[] {
       service: "twitter",
       dueAt: hoursFrom(now, 26.5),
       text: `${shared} ${LINEN}`,
+      assets: [image("https://cdn.northwind.example/all-x-dup.jpg", 1200, 800, "The linen stack photographed for the X post")],
     }),
     post({
       id: "post_tw_lookbook",
@@ -130,6 +133,7 @@ export function demoPosts(now: Date): Post[] {
       service: "twitter",
       dueAt: hoursFrom(now, 36),
       text: `The lookbook link is still the old one ${LOOKBOOK}`,
+      assets: [image("https://cdn.northwind.example/all-x-look.jpg", 1200, 800, "A printed fall lookbook page on the studio table")],
     }),
     post({
       id: "post_tw_todo",
@@ -144,6 +148,7 @@ export function demoPosts(now: Date): Post[] {
       service: "twitter",
       dueAt: hoursFrom(now, -2),
       text: "Studio hours reminder for the team.",
+      assets: [image("https://cdn.northwind.example/all-x-hours.jpg", 1200, 800, "Studio door with the hours painted on the glass")],
     }),
     post({
       id: "post_fb_paused",
@@ -153,6 +158,7 @@ export function demoPosts(now: Date): Post[] {
       text: "This week's journal is the dye notes.",
       hasFirstCommentField: true,
       firstComment: "",
+      assets: [image("https://cdn.northwind.example/all-fb-notes.jpg", 1200, 900, "Dye swatches and notes pinned above the vat")],
     }),
     post({
       id: "post_pin_signed",
@@ -171,6 +177,7 @@ export function demoPosts(now: Date): Post[] {
       dueAt: hoursFrom(now, 15),
       text: "A short note from the dye room.",
       topic: "spring & summer.",
+      assets: [image("https://cdn.northwind.example/all-th-vat.jpg", 1080, 1080, "Steam above the walnut dye vat")],
     }),
     post({
       id: "post_bs_clean",
@@ -178,6 +185,7 @@ export function demoPosts(now: Date): Post[] {
       service: "bluesky",
       dueAt: hoursFrom(now, 10),
       text: "Studio hours this Thursday, 10 to 4. Come see the linen series.",
+      assets: [image("https://cdn.northwind.example/all-bs-table.jpg", 1200, 800, "The studio table set out for Thursday open hours")],
     }),
     post({
       id: "post_li_approval_soon",
@@ -186,6 +194,7 @@ export function demoPosts(now: Date): Post[] {
       status: "needs_approval",
       dueAt: hoursFrom(now, 5),
       text: "The linen notes are ready. This still needs a yes before it can go out.",
+      assets: [image("https://cdn.northwind.example/all-li-yes.jpg", 1200, 800, "Printed linen notes waiting for a signature")],
     }),
     post({
       id: "post_bs_approval_later",
@@ -226,6 +235,15 @@ export function demoLinkPreset(): Map<string, LinkStatus> {
     ["https://cdn.northwind.example/dye.jpg", ok("https://cdn.northwind.example/dye.jpg")],
     ["https://cdn.northwind.example/hem.jpg", ok("https://cdn.northwind.example/hem.jpg")],
     ["https://cdn.northwind.example/draft.jpg", ok("https://cdn.northwind.example/draft.jpg")],
+    ["https://cdn.northwind.example/all-li-notes.jpg", ok("https://cdn.northwind.example/all-li-notes.jpg")],
+    ["https://cdn.northwind.example/all-li-lot.jpg", ok("https://cdn.northwind.example/all-li-lot.jpg")],
+    ["https://cdn.northwind.example/all-li-yes.jpg", ok("https://cdn.northwind.example/all-li-yes.jpg")],
+    ["https://cdn.northwind.example/all-x-dup.jpg", ok("https://cdn.northwind.example/all-x-dup.jpg")],
+    ["https://cdn.northwind.example/all-x-look.jpg", ok("https://cdn.northwind.example/all-x-look.jpg")],
+    ["https://cdn.northwind.example/all-x-hours.jpg", ok("https://cdn.northwind.example/all-x-hours.jpg")],
+    ["https://cdn.northwind.example/all-fb-notes.jpg", ok("https://cdn.northwind.example/all-fb-notes.jpg")],
+    ["https://cdn.northwind.example/all-th-vat.jpg", ok("https://cdn.northwind.example/all-th-vat.jpg")],
+    ["https://cdn.northwind.example/all-bs-table.jpg", ok("https://cdn.northwind.example/all-bs-table.jpg")],
   ]);
 }
 

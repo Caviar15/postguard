@@ -15,7 +15,7 @@ npm install
 npm run dev
 ```
 
-Open http://localhost:3000 and choose **Try the demo queue**. Demo mode replays a fixture (Northwind Studio) and does not call Buffer, so it spends none of the shared app quota. On `/demo`, the example switcher chooses All (the mixed queue) or a single platform: Instagram, TikTok, X, LinkedIn, or Facebook. The choice is `?platform=` (`tiktok`, `x`, and so on), so a reload and Scan again keep it. Posts that already have a picture or a video show that media on the card. The files live in `public/demo` (Unsplash photos, saved in the repo). The checks still use the fixture URLs, so a signed or missing file is still flagged. A TikTok post with no video stays empty on purpose.
+Open http://localhost:3000 and choose **Try the demo queue**. Demo mode replays a fixture (Northwind Studio) and does not call Buffer, so it spends none of the shared app quota. On `/demo`, the example switcher chooses All (the mixed queue) or a single platform: Instagram, TikTok, X, LinkedIn, or Facebook. The choice is `?platform=` (`tiktok`, `x`, and so on), so a reload and Scan again keep it. Posts that already have a picture or a video show that media on the card. Instagram, TikTok, and Pinterest posts in the demo each have a picture or a poster, except the TikTok post with no video, which shows a “No video attached” box. Other platforms show a picture on most posts. The files live in `public/demo` (Unsplash photos, saved in the repo). The checks still use the fixture URLs, so a signed or missing file is still flagged.
 
 ## Connect a real Buffer account
 

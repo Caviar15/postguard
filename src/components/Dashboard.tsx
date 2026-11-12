@@ -5,7 +5,7 @@ import Link from "next/link";
 import { PRIORITIES, PRIORITY_LABEL, countPriorities, findingsForCard, selectCards } from "@/domain/readiness";
 import type { AltSuggestion, Priority, ScanReport } from "@/domain/types";
 import { CropPreview } from "./CropPreview";
-import { MediaStrip } from "./MediaStrip";
+import { MediaStrip, MissingVideo } from "./MediaStrip";
 import { Brand } from "./Brand";
 import { addCalendarDays, calendarDay, timelineZone } from "@/domain/timeline";
 import { DEMO_PLATFORMS, platformLabel, type DemoPlatform } from "@/demo/platforms";
@@ -308,8 +308,8 @@ export function Dashboard({
             return (
               <article key={card.id} id={`post-${card.id}`} className={`post-card priority-${card.priority}`} data-priority={card.priority}>
                 <div className="card-visual">
-                  {card.media.length > 0 ? <MediaStrip thumbs={card.media} extra={card.mediaExtra} /> : null}
-                  {card.preview ? <CropPreview preview={card.preview} /> : card.media.length === 0 ? <div className="crop-spacer" /> : null}
+                  {card.media.length > 0 ? <MediaStrip thumbs={card.media} extra={card.mediaExtra} /> : card.service === "tiktok" ? <MissingVideo /> : null}
+                  {card.preview ? <CropPreview preview={card.preview} /> : card.media.length === 0 && card.service !== "tiktok" ? <div className="crop-spacer" /> : null}
                 </div>
                 <div>
                   <div className="meta">
