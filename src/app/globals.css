@@ -328,10 +328,11 @@ code { font-size: 0.9em; background: #f6f1e7; padding: 1px 5px; border-radius: 4
 .dot-medium { background: var(--medium); }
 .dot-low { background: var(--info); }
 .dot-ready { background: var(--ok); }
-.post-list { display: grid; gap: 12px; }
+.post-list { display: grid; gap: 12px; min-width: 0; }
 .post-card {
   display: grid;
   grid-template-columns: 200px 1fr;
+  min-width: 0;
   gap: 14px;
   background: var(--card);
   border: 1px solid var(--line);
@@ -344,7 +345,7 @@ code { font-size: 0.9em; background: #f6f1e7; padding: 1px 5px; border-radius: 4
 .finding-inline p { margin: 0 0 6px; color: var(--ink-soft); }
 .crop { margin: 0; }
 .crop-frame { position: relative; width: 100%; max-height: 260px; background: #e7dcc8; border-radius: 12px; overflow: hidden; }
-.crop img, .crop-fallback { width: 100%; height: 100%; object-fit: cover; display: block; }
+.crop img, .crop-fallback { width: 100%; max-width: 100%; height: 100%; object-fit: cover; display: block; }
 .crop-fallback { background: linear-gradient(160deg, #c4b49a, #8f2d2a 140%); min-height: 160px; }
 .crop-shade { position: absolute; left: 0; right: 0; background: repeating-linear-gradient(-45deg, rgba(28, 24, 20, 0.55), rgba(28, 24, 20, 0.55) 6px, rgba(28, 24, 20, 0.28) 6px, rgba(28, 24, 20, 0.28) 12px); }
 .crop-shade-side { top: 0; bottom: 0; }
@@ -366,6 +367,8 @@ code { font-size: 0.9em; background: #f6f1e7; padding: 1px 5px; border-radius: 4
 }
 
 @media (max-width: 600px) {
+  /* The sideways chip row's scrollbar otherwise widens the page by a few pixels. */
+  html, body { overflow-x: hidden; }
   .channel-row {
     flex-wrap: nowrap;
     overflow-x: auto;
