@@ -107,12 +107,20 @@ export function riskHeadline(
   return `Next risky post in ${days} day${days === 1 ? "" : "s"}.`;
 }
 
-/** Soonest publish time first. Posts with no time sort after every dated post. */
+/** Soonest publish time first. Posts with no usable time sort after every dated post. */
 export function compareByTime(a: { dueAt: string | null }, b: { dueAt: string | null }): number {
-  if (a.dueAt && b.dueAt) return a.dueAt < b.dueAt ? -1 : a.dueAt > b.dueAt ? 1 : 0;
-  if (a.dueAt) return -1;
-  if (b.dueAt) return 1;
+  const left = instant(a.dueAt);
+  const right = instant(b.dueAt);
+  if (left !== null && right !== null) return left - right;
+  if (left !== null) return -1;
+  if (right !== null) return 1;
   return 0;
+}
+
+function instant(value: string | null): number | null {
+  if (!value) return null;
+  const time = Date.parse(value);
+  return Number.isNaN(time) ? null : time;
 }
 
 /** How much is at stake on one post: the sum of its finding penalties. Info costs nothing. */
