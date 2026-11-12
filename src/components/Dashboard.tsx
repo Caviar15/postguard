@@ -13,10 +13,6 @@ const DAY_CHOICES = [3, 7, 14];
 type SortKey = "priority" | "time";
 type FilterKey = Priority | "all";
 
-function isPriority(value: string | null): value is Priority {
-  return PRIORITIES.includes(value as Priority);
-}
-
 type LiveSuggestion =
   | { state: "loading" }
   | { state: "ready"; altText: string; mismatch: string | null }
@@ -26,19 +22,27 @@ export function Dashboard({
   report,
   basePath,
   sessionNote,
+  initialSort = "priority",
+  initialFilter = "all",
 }: {
   report: ScanReport;
   basePath: string;
   sessionNote?: string | null;
+  /** From ?sort= on the server, so the first paint already has the right order. */
+  initialSort?: SortKey;
+  /** From ?filter= on the server, so the first paint already matches the chip. */
+  initialFilter?: FilterKey;
 }) {
-  const [filter, setFilter] = useState<FilterKey>("all");
-  const [sort, setSort] = useState<SortKey>("priority");
+  const [filter, setFilter] = useState<FilterKey>(initialFilter);
+  const [sort, setSort] = useState<SortKey>(initialSort);
   const [suggest, setSuggest] = useState(false);
   const [liveSuggestions, setLiveSuggestions] = useState<Record<string, LiveSuggestion>>({});
 
   const query = (days: number, drafts = report.includeDrafts) => {
     const params = new URLSearchParams({ days: String(days) });
     if (drafts) params.set("drafts", "1");
+    if (sort === "time") params.set("sort", "time");
+    if (filter !== "all") params.set("filter", filter);
     return `${basePath}?${params.toString()}`;
   };
 
@@ -46,14 +50,13 @@ export function Dashboard({
   // reload, back/forward or a copied link reads the cache instead of spending another scan of the shared quota.
   useEffect(() => {
     const url = new URL(window.location.href);
-    const sortValue = url.searchParams.get("sort");
-    setSort(sortValue === "time" ? "time" : "priority");
-    const filterValue = url.searchParams.get("filter");
-    setFilter(isPriority(filterValue) ? filterValue : "all");
     if (url.searchParams.get("refresh") !== "1") return;
     url.searchParams.delete("refresh");
     window.history.replaceState(window.history.state, "", `${url.pathname}${url.search}${url.hash}`);
   }, [report]);
+
+  useEffect(() => setSort(initialSort), [initialSort]);
+  useEffect(() => setFilter(initialFilter), [initialFilter]);
 
   function writeView(nextSort: SortKey, nextFilter: FilterKey) {
     const url = new URL(window.location.href);
