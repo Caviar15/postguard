@@ -94,6 +94,7 @@ The Experimental `configuration` query is not called. Limits come from the [char
 | `channel-disconnected` / `channel-locked` | Blocker | Those flags, and at least one post in the window |
 | `channel-paused` | Info | `isQueuePaused` with posts still queued |
 | `schedule` | High | `dueAt` in the past, status still `scheduled` |
+| `needs-approval` | High | `needs_approval` with `dueAt` in the next 24 hours, or already past. No `dueAt` is a pill only |
 | `publishing-error` | High | `Post.error.message` |
 | `notification-post` | Info | `schedulingType: notification` |
 | `placeholder` | High | `TODO`, `TBD`, `FIXME`, lorem, `[link]`, `{{…}}`, `<name>`, `XXX` |

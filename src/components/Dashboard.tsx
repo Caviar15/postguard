@@ -289,6 +289,7 @@ export function Dashboard({
                     <span>{serviceLabel(card.service)} · {card.channelName}</span>
                     <span>{formatDue(card.dueAt)}</span>
                     {card.status === "draft" ? <span className="pill">Draft</span> : null}
+                    {card.status === "needs_approval" ? <span className="pill">Awaiting approval</span> : null}
                     {card.status === "sending" ? <span className="pill">Sending</span> : null}
                   </div>
                   <h2>{card.channelName}</h2>

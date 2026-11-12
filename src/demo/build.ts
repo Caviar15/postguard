@@ -176,6 +176,22 @@ export function demoPosts(now: Date): Post[] {
       text: "Studio hours this Thursday, 10 to 4. Come see the linen series.",
     }),
     post({
+      id: "post_li_approval_soon",
+      channelId: "ch_li",
+      service: "linkedin",
+      status: "needs_approval",
+      dueAt: hoursFrom(now, 5),
+      text: "The linen notes are ready. This still needs a yes before it can go out.",
+    }),
+    post({
+      id: "post_bs_approval_later",
+      channelId: "ch_bs",
+      service: "bluesky",
+      status: "needs_approval",
+      dueAt: hoursFrom(now, 72),
+      text: "A studio visit next week, once this post is approved.",
+    }),
+    post({
       id: "post_ig_draft",
       channelId: "ch_ig",
       service: "instagram",
@@ -277,7 +293,7 @@ export async function buildDemoReport(now = new Date(), windowDays = 7, includeD
         : "Drafts are hidden. Turn on Include drafts to check a post before it is scheduled.",
       "Alt-text suggestions in this demo are recorded examples. Nothing is sent to a model.",
       "Images in the demo are generated placeholders with the real pixel sizes, because the example image hosts do not exist.",
-      "The broken posts are invented: a dead shop link, a lookbook 404, an old blog 404, a signed S3 image, a paused Facebook queue, a caption that promises a first comment, and a LinkedIn post written in Unicode bold.",
+      "The broken posts are invented: a dead shop link, a lookbook 404, an old blog 404, a signed S3 image, a paused Facebook queue, a caption that promises a first comment, a LinkedIn post written in Unicode bold, and a post that still needs approval before a slot in the next few hours.",
     ],
   });
   report.cards = report.cards.map((card, index) =>

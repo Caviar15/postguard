@@ -8,7 +8,7 @@ describe("demo report", () => {
     const report = await buildDemoReport(new Date("2026-11-10T12:00:00.000Z"), 7);
     expect(report.mode).toBe("demo");
     expect(report.requestsUsed).toBe(0);
-    expect(report.headline).toBe("Next 7 days: 3 dead links, 1 duplicate, 2 missing alt text, 1 paused channel, 7 other risks.");
+    expect(report.headline).toBe("Next 7 days: 3 dead links, 1 duplicate, 2 missing alt text, 1 paused channel, 8 other risks.");
     expect(report.riskHeadline).toBe("A risky post is already overdue.");
     expect(report.includeDrafts).toBe(false);
     expect(report.cards[0]?.id).toBe("post_ig_comments");

@@ -1,5 +1,6 @@
 import { SEVERITY_RANK, type Channel, type Finding, type LinkStatus, type Post } from "@/domain/types";
 import { altText } from "./alt";
+import { approvals } from "./approval";
 import { aspectRatio } from "./aspect";
 import { channelHealth } from "./channels";
 import type { RuleContext } from "./context";
@@ -38,6 +39,7 @@ export function runRules(input: {
     ...duplicates(ctx),
     ...channelHealth(ctx),
     ...schedule(ctx),
+    ...approvals(ctx),
     ...placeholders(ctx),
     ...hashtags(ctx),
   ];
