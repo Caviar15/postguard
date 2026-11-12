@@ -1,6 +1,6 @@
 import type { AltSuggestion, Channel, CropPreview, LinkStatus, Post, PostCard, QuotaWindow, ScanReport, Severity } from "@/domain/types";
 import { emptyTotals, headline } from "@/domain/headline";
-import { channelReadiness, channelScore, postReadiness, riskHeadline } from "@/domain/readiness";
+import { channelPriority, channelScore, postPriority, riskHeadline } from "@/domain/readiness";
 import { copyUrls, mediaUrls } from "@/domain/urls";
 import { bufferFixUrl } from "@/buffer/deep-link";
 import { quotaLabel } from "@/buffer/rate-limit";
@@ -102,7 +102,7 @@ export function assembleReport(input: {
     cards,
     channels: input.channels.map((channel) => {
       const channelFindings = findings.filter((finding) => finding.channelId === channel.id);
-      const readinesses = cards.filter((card) => card.channelId === channel.id).map((card) => card.readiness);
+      const priorities = cards.filter((card) => card.channelId === channel.id).map((card) => card.priority);
       const score = channelScore(channelFindings);
       return {
         id: channel.id,
@@ -114,7 +114,7 @@ export function assembleReport(input: {
         postCount: input.posts.filter((post) => post.channelId === channel.id).length,
         findingCount: channelFindings.length,
         score,
-        readiness: channelReadiness(score, readinesses),
+        priority: channelPriority(priorities, channel),
       };
     }),
     findings,
@@ -161,7 +161,7 @@ function buildCards(posts: Post[], channels: Channel[], findings: ScanReport["fi
         dueAt: post.dueAt,
         timeZone: channel?.timezone ?? null,
         excerpt: excerpt(post.text),
-        readiness: postReadiness(post, findings, channel),
+        priority: postPriority(post, findings, channel),
         fixUrl: bufferFixUrl(post.channelId, post.id),
         needsAlt: post.assets.some((item) => item.type === "image" && !(item.altText ?? "").trim()),
         preview,

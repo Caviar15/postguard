@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { makeChannel, makePost } from "@/test/factory";
 import { cropFrame, ratioBand } from "@/rules/crop";
-import { channelReadiness, channelScore, postReadiness, riskHeadline } from "./readiness";
+import { channelPriority, channelScore, compareByPriority, compareByTime, postPriority, riskHeadline } from "./readiness";
 
 describe("crop preview geometry", () => {
   it("hatches the top and bottom of a portrait image on an Instagram feed post", () => {
@@ -14,22 +14,64 @@ describe("crop preview geometry", () => {
   });
 });
 
-describe("readiness", () => {
+describe("priority", () => {
   const now = new Date("2026-11-10T12:00:00.000Z");
 
-  it("fails a post with a blocker and marks a paused channel as needing attention", () => {
-    const channel = makeChannel({ isQueuePaused: true });
+  it("uses the highest finding, treats info as Ready, and keeps Low off Ready", () => {
     const post = makePost();
-    expect(postReadiness(post, [{ ...finding("blocker"), postId: post.id }], channel)).toBe("fail");
-    expect(postReadiness(post, [], channel)).toBe("attention");
-    expect(channelScore([])).toBe(100);
-    expect(channelReadiness(100, ["attention"])).toBe("attention");
+    const channel = makeChannel();
+    expect(postPriority(post, [{ ...finding("low"), postId: post.id }], channel)).toBe("low");
+    expect(postPriority(post, [{ ...finding("info"), postId: post.id }], channel)).toBe("ready");
+    expect(postPriority(post, [], channel)).toBe("ready");
+    expect(postPriority(post, [{ ...finding("low"), postId: post.id }, { ...finding("medium"), postId: post.id }], channel)).toBe("medium");
+    expect(postPriority(post, [{ ...finding("blocker"), postId: post.id }], makeChannel({ isQueuePaused: true }))).toBe("blocker");
   });
 
-  it("names an overdue risky post and a clear window", () => {
-    expect(riskHeadline([{ dueAt: "2026-11-10T09:00:00.000Z", readiness: "fail" }], now)).toBe("A risky post is already overdue.");
-    expect(riskHeadline([{ dueAt: "2026-11-12T12:00:00.000Z", readiness: "ready" }], now)).toBe("Nothing risky is scheduled in this window.");
-    expect(riskHeadline([{ dueAt: "2026-11-11T03:00:00.000Z", readiness: "attention" }], now)).toBe("Next risky post in 15 hours.");
+  it("marks a disconnected or locked channel Blocker and a paused queue High", () => {
+    const post = makePost();
+    expect(postPriority(post, [], makeChannel({ isDisconnected: true }))).toBe("blocker");
+    expect(postPriority(post, [], makeChannel({ isLocked: true }))).toBe("blocker");
+    expect(postPriority(post, [{ ...finding("low"), postId: post.id }], makeChannel({ isQueuePaused: true }))).toBe("high");
+    expect(channelPriority([], makeChannel({ isQueuePaused: true }))).toBe("high");
+    expect(channelPriority(["low", "ready"], makeChannel())).toBe("low");
+    expect(channelPriority(["ready"], makeChannel({ isLocked: true }))).toBe("blocker");
+    expect(channelScore([])).toBe(100);
+    expect(channelScore([{ ...finding("low"), postId: "p1" }])).toBe(97);
+  });
+
+  it("counts Blocker, High, and Medium as risky, and not Low", () => {
+    expect(riskHeadline([{ dueAt: "2026-11-10T09:00:00.000Z", priority: "blocker" }], now)).toBe("A risky post is already overdue.");
+    expect(riskHeadline([{ dueAt: "2026-11-12T12:00:00.000Z", priority: "ready" }], now)).toBe("Nothing risky is scheduled in this window.");
+    expect(riskHeadline([{ dueAt: "2026-11-12T12:00:00.000Z", priority: "low" }], now)).toBe("Nothing risky is scheduled in this window.");
+    expect(riskHeadline([{ dueAt: "2026-11-11T03:00:00.000Z", priority: "high" }], now)).toBe("Next risky post in 15 hours.");
+    expect(riskHeadline([{ dueAt: "2026-11-11T03:00:00.000Z", priority: "medium" }], now)).toBe("Next risky post in 15 hours.");
+  });
+
+  it("sorts by priority, then soonest time, with undated posts last", () => {
+    const cards = [
+      { id: "ready-soon", priority: "ready" as const, dueAt: "2026-11-12T08:00:00.000Z" },
+      { id: "low-soon", priority: "low" as const, dueAt: "2026-11-12T09:00:00.000Z" },
+      { id: "high-late", priority: "high" as const, dueAt: "2026-11-13T09:00:00.000Z" },
+      { id: "high-soon", priority: "high" as const, dueAt: "2026-11-12T10:00:00.000Z" },
+      { id: "blocker-none", priority: "blocker" as const, dueAt: null },
+      { id: "blocker-soon", priority: "blocker" as const, dueAt: "2026-11-12T18:00:00.000Z" },
+    ];
+    expect([...cards].sort(compareByPriority).map((card) => card.id)).toEqual([
+      "blocker-soon",
+      "blocker-none",
+      "high-soon",
+      "high-late",
+      "low-soon",
+      "ready-soon",
+    ]);
+    expect([...cards].sort(compareByTime).map((card) => card.id)).toEqual([
+      "ready-soon",
+      "low-soon",
+      "high-soon",
+      "blocker-soon",
+      "high-late",
+      "blocker-none",
+    ]);
   });
 });
 

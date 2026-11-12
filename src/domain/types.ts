@@ -131,7 +131,7 @@ export type QuotaWindow = {
   windowSeconds: number | null;
 };
 
-export type Readiness = "ready" | "attention" | "fail";
+export type Priority = "blocker" | "high" | "medium" | "low" | "ready";
 
 export type CropPreview = {
   src: string | null;
@@ -154,7 +154,7 @@ export type PostCard = {
   dueAt: string | null;
   timeZone: string | null;
   excerpt: string;
-  readiness: Readiness;
+  priority: Priority;
   fixUrl: string;
   needsAlt: boolean;
   preview: CropPreview | null;
@@ -185,7 +185,7 @@ export type ScanReport = {
     postCount: number;
     findingCount: number;
     score: number;
-    readiness: Readiness;
+    priority: Priority;
   }>;
   findings: Finding[];
   totals: Record<Severity, number>;
