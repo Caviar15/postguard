@@ -192,7 +192,7 @@ ${incomplete}${groups.map((entry) => renderGroupHtml(entry, subscriber, ctx.now)
   };
 }
 
-export type CheckFailure = "auth" | "rate-limit" | "unavailable";
+export type CheckFailure = "auth" | "rate-limit" | "unavailable" | "store";
 
 /**
  * Sent when the daily check could not read the queue. Silence is the product's "all clear", so a check that did not
@@ -207,7 +207,9 @@ export function renderCheckFailed(subscriber: Subscriber, ctx: { appUrl: string;
       ? `Buffer did not accept PostGuard's saved alert sign-in, so today's check did not run. Turn alerts on again at ${setup}`
       : ctx.reason === "rate-limit"
         ? "Buffer's rate limit was used up, so today's check did not run. PostGuard tries again at the next daily check."
-        : "PostGuard could not read your queue from Buffer (no answer, or an error), so today's check did not run. PostGuard tries again at the next daily check.";
+        : ctx.reason === "store"
+          ? "PostGuard's own storage did not answer while loading the saved alert sign-in, so today's check did not run. Buffer was not asked. PostGuard tries again at the next daily check."
+          : "PostGuard could not read your queue from Buffer (no answer, or an error), so today's check did not run. PostGuard tries again at the next daily check.";
   const meaning = `Until a check succeeds, no email does not mean nothing is wrong. You can scan your queue now: ${dashboard}`;
   const reads = "PostGuard only reads your Buffer queue. It never edits, pauses, schedules or publishes anything.";
   const text = [why, "", meaning, "", reads, "", `Stop these emails: ${unsubscribe}`].join("\n");

@@ -2,6 +2,14 @@ import { createHash, randomBytes, timingSafeEqual } from "node:crypto";
 import { openGrant, sealGrant, UnreadableGrantError } from "./crypto";
 import type { AlertStore, Release, Subscriber } from "./types";
 
+/** PostGuard's own alert store (Upstash) failed. Not a Buffer problem. */
+export class AlertStoreError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "AlertStoreError";
+  }
+}
+
 /** The only thing the store needs from Redis. Upstash's REST API takes the command as a JSON array. */
 export interface RedisClient {
   command(args: Array<string | number>): Promise<unknown>;
@@ -16,16 +24,21 @@ export class UpstashRedis implements RedisClient {
   ) {}
 
   async command(args: Array<string | number>): Promise<unknown> {
-    const response = await this.fetchImpl(this.url, {
-      method: "POST",
-      headers: { authorization: `Bearer ${this.token}`, "content-type": "application/json" },
-      body: JSON.stringify(args),
-      cache: "no-store",
-      signal: AbortSignal.timeout(this.timeoutMs),
-    });
-    if (!response.ok) throw new Error(`Alert store answered HTTP ${response.status}.`);
-    const json = (await response.json()) as { result?: unknown; error?: string };
-    if (json.error) throw new Error("Alert store returned an error.");
+    let response: Response;
+    try {
+      response = await this.fetchImpl(this.url, {
+        method: "POST",
+        headers: { authorization: `Bearer ${this.token}`, "content-type": "application/json" },
+        body: JSON.stringify(args),
+        cache: "no-store",
+        signal: AbortSignal.timeout(this.timeoutMs),
+      });
+    } catch {
+      throw new AlertStoreError("Alert store did not answer.");
+    }
+    if (!response.ok) throw new AlertStoreError(`Alert store answered HTTP ${response.status}.`);
+    const json = (await response.json().catch(() => ({ error: "unreadable" }))) as { result?: unknown; error?: string };
+    if (json.error) throw new AlertStoreError("Alert store returned an error.");
     return json.result;
   }
 }

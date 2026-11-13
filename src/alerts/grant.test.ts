@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { BufferAuthError } from "@/buffer/client";
-import type { TokenSet } from "@/auth/oauth";
+import { TokenEndpointError, type TokenSet } from "@/auth/oauth";
 import { getAccessToken, type GrantStore } from "./grant";
 import type { Release } from "./types";
 
@@ -14,7 +14,7 @@ function buffer(initial: string) {
     state.refreshes += 1;
     if (state.revoked || state.spent.has(token) || token !== state.current) {
       state.revoked = true;
-      throw new Error("invalid_grant");
+      throw new TokenEndpointError("invalid_grant", 400); // what refreshAccessToken throws for Buffer's 400 answer
     }
     state.spent.add(token);
     state.counter += 1;

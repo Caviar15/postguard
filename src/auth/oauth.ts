@@ -86,6 +86,14 @@ export async function exchangeAuthorizationCode(input: {
   return readTokenSet(json);
 }
 
+/** A refresh the token endpoint answered with an error. `status` tells a rejected token (400/401) from an outage (5xx). */
+export class TokenEndpointError extends Error {
+  constructor(message: string, readonly status: number) {
+    super(message);
+    this.name = "TokenEndpointError";
+  }
+}
+
 export async function refreshAccessToken(input: {
   refreshToken: string;
   clientId: string;
@@ -109,7 +117,7 @@ export async function refreshAccessToken(input: {
   });
   const json = (await response.json().catch(() => ({}))) as TokenJson;
   if (!response.ok) {
-    throw new Error(json.error_description || json.error || `Refresh failed with HTTP ${response.status}.`);
+    throw new TokenEndpointError(json.error_description || json.error || `Refresh failed with HTTP ${response.status}.`, response.status);
   }
   return readTokenSet(json, Date.now(), input.refreshToken);
 }

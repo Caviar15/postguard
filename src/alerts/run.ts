@@ -2,6 +2,8 @@ import { createHash, timingSafeEqual } from "node:crypto";
 import { BufferAuthError, BufferRateLimitError } from "@/buffer/client";
 import type { ScanReport } from "@/domain/types";
 import { UnreadableGrantError } from "./crypto";
+import { TokenRefreshUnavailableError } from "./grant";
+import { AlertStoreError } from "./redis";
 import { escapeHtml, incompleteNotes, renderCheckFailed, renderMessage, type CheckFailure } from "./message";
 import { horizonFor, selectAlertItems } from "./select";
 import type { AlertItem, RunDeps, RunResult, Subscriber } from "./types";
@@ -154,6 +156,8 @@ export async function runAlerts(deps: RunDeps, options: { dryRun?: boolean } = {
 
 function failureKind(error: unknown): CheckFailure {
   if (error instanceof BufferRateLimitError) return "rate-limit";
+  if (error instanceof AlertStoreError) return "store";
+  if (error instanceof TokenRefreshUnavailableError) return "unavailable";
   if (error instanceof BufferAuthError) return "auth";
   // grant.ts: a refreshed token that could not be saved also needs a new sign-in, and says so.
   if (error instanceof Error && error.message.includes("/alerts/setup")) return "auth";

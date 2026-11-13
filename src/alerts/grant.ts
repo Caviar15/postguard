@@ -1,5 +1,5 @@
 import { BufferAuthError } from "@/buffer/client";
-import type { TokenSet } from "@/auth/oauth";
+import { TokenEndpointError, type TokenSet } from "@/auth/oauth";
 import type { Release } from "./types";
 
 /** Where the alert grant lives. The Redis store implements it. */
@@ -16,6 +16,14 @@ export type GrantDeps = {
   now: () => Date;
   sleep: (ms: number) => Promise<void>;
 };
+
+/** Buffer's token endpoint did not answer usefully (5xx, 429, timeout, network). The stored token is kept. */
+export class TokenRefreshUnavailableError extends Error {
+  constructor() {
+    super("Buffer's sign-in service did not answer, so the alert token was not refreshed. The next daily check tries again.");
+    this.name = "TokenRefreshUnavailableError";
+  }
+}
 
 const SKEW_MS = 60_000;
 const SAVE_ATTEMPTS = 3;
@@ -59,8 +67,15 @@ export async function getAccessToken(deps: GrantDeps, subscriberId: string): Pro
     let tokens: TokenSet;
     try {
       tokens = await deps.refresh(grant.refreshToken!);
-    } catch {
-      throw new BufferAuthError("Buffer did not accept the saved alert token. Turn alerts on again at /alerts/setup.");
+    } catch (error) {
+      // Only an answer that rejects the token (400 invalid_grant, 401/403) means a new sign-in is needed. An outage,
+      // a timeout or a network error leaves the stored token in place for the next daily check: do not send the
+      // owner to set up again for that. (If Buffer did rotate it before the answer was lost, the next refresh is
+      // rejected and THAT run says "turn alerts on again".)
+      if (error instanceof TokenEndpointError && error.status >= 400 && error.status < 500 && error.status !== 429) {
+        throw new BufferAuthError("Buffer did not accept the saved alert token. Turn alerts on again at /alerts/setup.");
+      }
+      throw new TokenRefreshUnavailableError();
     }
     if (!tokens.refreshToken) throw new BufferAuthError("Buffer did not return a refresh token. Turn alerts on again at /alerts/setup.");
     // The old refresh token is spent now, so losing the new one ends the grant. Retry a transient store failure.
