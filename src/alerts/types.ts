@@ -14,7 +14,7 @@ export type Subscriber = {
 };
 
 export type AlertItem = {
-  /** Dedupe key: subscriber + post + finding. */
+  /** Dedupe key: subscriber + post + publish time + finding. A rescheduled, still-broken post is alerted again. */
   key: string;
   postId: string;
   channelId: string;

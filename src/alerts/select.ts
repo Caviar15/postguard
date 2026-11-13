@@ -42,12 +42,15 @@ export function selectAlertItems(
     if (!Number.isFinite(due) || due <= ctx.now.getTime() || due > ctx.horizonEnd.getTime()) continue;
     const forCard = findingsForCard(report.findings, card);
     const alertFindings = forCard.filter(isAlertFinding);
+    // The publish time is part of the dedupe key: a post that was alerted and then moved to a new time without
+    // being fixed is a new situation, so it is alerted again. The same post at the same time is never sent twice.
+    const dueIso = new Date(due).toISOString();
     const base = {
       postId: card.id,
       channelId: card.channelId,
       channelName: card.channelName,
       service: card.service,
-      dueAt: new Date(due).toISOString(),
+      dueAt: dueIso,
       excerpt: card.excerpt || null,
       fixUrl: bufferFixUrl(card.channelId, card.id),
       cardUrl: cardUrl(ctx.appUrl, report.organization.id, card.id),
@@ -57,7 +60,7 @@ export function selectAlertItems(
       const reason = [...forCard].sort((a, b) => b.detail.length - a.detail.length)[0];
       items.push({
         ...base,
-        key: `${subscriber.id}|${card.id}|card:${card.priority}`,
+        key: `${subscriber.id}|${card.id}|${dueIso}|card:${card.priority}`,
         ruleId: reason?.ruleId ?? "channel-state",
         severity: card.priority,
         title: reason?.title ?? (card.priority === "blocker" ? "This channel cannot publish" : "This channel's queue needs attention"),
@@ -68,7 +71,7 @@ export function selectAlertItems(
     for (const finding of alertFindings) {
       items.push({
         ...base,
-        key: `${subscriber.id}|${card.id}|${finding.id}`,
+        key: `${subscriber.id}|${card.id}|${dueIso}|${finding.id}`,
         ruleId: finding.ruleId,
         severity: finding.severity,
         title: finding.title,
