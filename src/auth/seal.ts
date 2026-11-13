@@ -7,14 +7,23 @@ function key(secret: string): Buffer {
 const TAG_BYTES = 16;
 
 export function seal(payload: unknown, secret: string): string {
+  return sealWithKey(payload, key(secret));
+}
+
+/** Same format as seal(), but with a ready-made 32 byte key (see src/alerts/crypto.ts). */
+export function sealWithKey(payload: unknown, aesKey: Buffer): string {
   const iv = randomBytes(12);
-  const cipher = createCipheriv("aes-256-gcm", key(secret), iv, { authTagLength: TAG_BYTES });
+  const cipher = createCipheriv("aes-256-gcm", aesKey, iv, { authTagLength: TAG_BYTES });
   const ciphertext = Buffer.concat([cipher.update(JSON.stringify(payload), "utf8"), cipher.final()]);
   const tag = cipher.getAuthTag();
   return [iv.toString("base64url"), tag.toString("base64url"), ciphertext.toString("base64url")].join(".");
 }
 
 export function open<T>(token: string, secret: string): T | null {
+  return openWithKey<T>(token, key(secret));
+}
+
+export function openWithKey<T>(token: string, aesKey: Buffer): T | null {
   const [ivPart, tagPart, dataPart] = token.split(".");
   if (!ivPart || !tagPart || !dataPart) return null;
   try {
@@ -22,7 +31,7 @@ export function open<T>(token: string, secret: string): T | null {
     const tag = Buffer.from(tagPart, "base64url");
     // Node accepts truncated GCM tags (down to 4 bytes) unless told otherwise.
     if (iv.length !== 12 || tag.length !== TAG_BYTES) return null;
-    const decipher = createDecipheriv("aes-256-gcm", key(secret), iv, { authTagLength: TAG_BYTES });
+    const decipher = createDecipheriv("aes-256-gcm", aesKey, iv, { authTagLength: TAG_BYTES });
     decipher.setAuthTag(tag);
     const plaintext = Buffer.concat([
       decipher.update(Buffer.from(dataPart, "base64url")),

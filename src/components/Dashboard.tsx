@@ -177,6 +177,11 @@ export function Dashboard({
             ))}
           </nav>
         ) : null}
+        {report.mode === "demo" ? (
+          <p className="preview-link">
+            <Link className="button secondary small" href={platform === "all" ? "/demo/alert" : `/demo/alert?platform=${platform}`}>Preview alert email</Link>
+          </p>
+        ) : null}
         <p className="summary" data-testid="risk">{report.riskHeadline}</p>
         <div className="channel-row">
           {report.channels.map((channel) => (

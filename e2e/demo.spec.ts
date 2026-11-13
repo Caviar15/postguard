@@ -98,7 +98,7 @@ test("scan again in demo mode stays on a working dashboard", async ({ page }) =>
   await expect(page).toHaveURL(/\/demo\?days=7$/);
 });
 
-for (const path of ["/", "/demo", "/privacy", "/testing"]) {
+for (const path of ["/", "/demo", "/demo/alert", "/alerts/setup", "/privacy", "/testing"]) {
   test(`no serious accessibility violations on ${path}`, async ({ page }) => {
     await page.goto(path);
     const results = await new AxeBuilder({ page }).analyze();

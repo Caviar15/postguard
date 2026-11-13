@@ -11,6 +11,8 @@ export type Session = TokenSet;
 type OauthHandoff = {
   state: string;
   verifier: string;
+  /** Set by /api/auth/start?watch=1. The result is shown once for the alert setup instead of becoming a session. */
+  watch?: boolean;
 };
 
 function cookieOptions(maxAge: number) {
@@ -75,10 +77,39 @@ export async function readOauthHandoff(): Promise<OauthHandoff | null> {
   if (!token) return null;
   const handoff = open<OauthHandoff>(token, sessionSecret);
   if (!handoff?.state || !handoff.verifier) return null;
-  return handoff;
+  return { state: handoff.state, verifier: handoff.verifier, watch: handoff.watch === true };
 }
 
 export async function clearOauthHandoff(): Promise<void> {
   const jar = await cookies();
   jar.set(OAUTH_COOKIE, "", cookieOptions(0));
+}
+
+const ARM_COOKIE = "pg_alert_arm";
+
+/**
+ * Turning alerts on stores a Buffer grant on the server, so it is gated: the owner proves they can read
+ * the deployment's CRON_SECRET on the setup page, which arms this 10-minute cookie. Only an armed browser
+ * can finish the "connect for alerts" sign-in.
+ */
+export async function armAlertSetup(): Promise<void> {
+  const { sessionSecret } = getConfig();
+  if (!sessionSecret) throw new Error("SESSION_SECRET is not set.");
+  const jar = await cookies();
+  jar.set(ARM_COOKIE, seal({ until: Date.now() + 10 * 60_000 }, sessionSecret), cookieOptions(10 * 60));
+}
+
+export async function isAlertSetupArmed(): Promise<boolean> {
+  const { sessionSecret } = getConfig();
+  if (!sessionSecret) return false;
+  const jar = await cookies();
+  const value = jar.get(ARM_COOKIE)?.value;
+  if (!value) return false;
+  const armed = open<{ until?: number }>(value, sessionSecret);
+  return typeof armed?.until === "number" && armed.until > Date.now();
+}
+
+export async function clearAlertSetup(): Promise<void> {
+  const jar = await cookies();
+  jar.set(ARM_COOKIE, "", cookieOptions(0));
 }
