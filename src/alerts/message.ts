@@ -191,3 +191,39 @@ ${incomplete}${groups.map((entry) => renderGroupHtml(entry, subscriber, ctx.now)
     },
   };
 }
+
+export type CheckFailure = "auth" | "rate-limit" | "unavailable";
+
+/**
+ * Sent when the daily check could not read the queue. Silence is the product's "all clear", so a check that did not
+ * run must not be silent: without this the owner hears nothing, day after day, after a revoked grant or an outage.
+ */
+export function renderCheckFailed(subscriber: Subscriber, ctx: { appUrl: string; reason: CheckFailure }): OutgoingMessage {
+  const unsubscribe = unsubscribeUrl(ctx.appUrl, subscriber.unsubscribeToken);
+  const setup = new URL("/alerts/setup", ctx.appUrl).toString();
+  const dashboard = new URL("/dashboard", ctx.appUrl).toString();
+  const why =
+    ctx.reason === "auth"
+      ? `Buffer did not accept PostGuard's saved alert sign-in, so today's check did not run. Turn alerts on again at ${setup}`
+      : ctx.reason === "rate-limit"
+        ? "Buffer's rate limit was used up, so today's check did not run. PostGuard tries again at the next daily check."
+        : "PostGuard could not read your queue from Buffer (no answer, or an error), so today's check did not run. PostGuard tries again at the next daily check.";
+  const meaning = `Until a check succeeds, no email does not mean nothing is wrong. You can scan your queue now: ${dashboard}`;
+  const reads = "PostGuard only reads your Buffer queue. It never edits, pauses, schedules or publishes anything.";
+  const text = [why, "", meaning, "", reads, "", `Stop these emails: ${unsubscribe}`].join("\n");
+  const para = (value: string) => `<p style="margin:0 0 14px;font:15px/23px ${SANS};color:${INK};">${escapeHtml(value)}</p>`;
+  const html = `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:${PAPER};"><tr><td align="center" style="padding:24px 12px;">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:600px;margin:0 auto;"><tr><td>
+<p style="margin:0 0 4px;font:700 12px/18px ${SANS};letter-spacing:.08em;text-transform:uppercase;color:#8f2d2a;">PostGuard alert</p>
+<h1 style="margin:0 0 12px;font:600 24px/30px ${SERIF};color:${INK};">Today's check did not run.</h1>
+${para(why)}${para(meaning)}
+<p style="margin:14px 0 0;font:12px/18px ${SANS};color:${SOFT};">${escapeHtml(reads)} <a href="${escapeHtml(unsubscribe)}" style="color:${SOFT};">Stop these emails</a></p>
+</td></tr></table></td></tr></table>`;
+  return {
+    to: subscriber.email,
+    subject: "PostGuard could not check your Buffer queue today",
+    text,
+    html,
+    headers: { "List-Unsubscribe": `<${unsubscribe}>`, "List-Unsubscribe-Post": "List-Unsubscribe=One-Click" },
+  };
+}

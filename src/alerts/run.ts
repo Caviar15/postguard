@@ -1,10 +1,10 @@
 import { createHash, timingSafeEqual } from "node:crypto";
-import { BufferRateLimitError } from "@/buffer/client";
+import { BufferAuthError, BufferRateLimitError } from "@/buffer/client";
 import type { ScanReport } from "@/domain/types";
 import { UnreadableGrantError } from "./crypto";
-import { escapeHtml, incompleteNotes, renderMessage } from "./message";
+import { escapeHtml, incompleteNotes, renderCheckFailed, renderMessage, type CheckFailure } from "./message";
 import { horizonFor, selectAlertItems } from "./select";
-import type { AlertItem, RunDeps, RunResult } from "./types";
+import type { AlertItem, RunDeps, RunResult, Subscriber } from "./types";
 
 const HOUR = 3_600_000;
 const RUN_LOCK_MS = 10 * 60_000;
@@ -55,6 +55,7 @@ export async function runAlerts(deps: RunDeps, options: { dryRun?: boolean } = {
         }
         result.errors.push(`${subscriber.id}: ${errorName(error)}`);
         deps.log.warn("alerts: reading the queue failed", { subscriber: subscriber.id, error: errorName(error) });
+        if (!options.dryRun) await notifyCheckFailed(deps, subscriber, now, error, result);
         continue;
       }
 
@@ -146,6 +147,31 @@ export async function runAlerts(deps: RunDeps, options: { dryRun?: boolean } = {
     return { ...result, status: "failed", errors: [...result.errors, reason] };
   } finally {
     if (release) await release().catch(() => undefined);
+  }
+}
+
+function failureKind(error: unknown): CheckFailure {
+  if (error instanceof BufferRateLimitError) return "rate-limit";
+  if (error instanceof BufferAuthError) return "auth";
+  // grant.ts: a refreshed token that could not be saved also needs a new sign-in, and says so.
+  if (error instanceof Error && error.message.includes("/alerts/setup")) return "auth";
+  return "unavailable";
+}
+
+/** At most one "today's check did not run" email per subscriber per UTC day. Never throws. */
+async function notifyCheckFailed(deps: RunDeps, subscriber: Subscriber, now: Date, error: unknown, result: RunResult): Promise<void> {
+  if (deps.deadlineAt !== undefined && (deps.clock ?? Date.now)() > deps.deadlineAt - SEND_RESERVE_MS) return;
+  const key = `${subscriber.id}|check-failed|${now.toISOString().slice(0, 10)}`;
+  let claimed = false;
+  try {
+    claimed = await deps.store.claim(key, CLAIM_TTL_MS);
+    if (!claimed) return;
+    const message = renderCheckFailed(subscriber, { appUrl: deps.config.appUrl, reason: failureKind(error) });
+    await deps.mailer.send(message, { idempotencyKey: createHash("sha256").update(key).digest("hex") });
+  } catch (sendError) {
+    if (claimed) await deps.store.unclaim(key).catch(() => undefined);
+    result.errors.push(`${subscriber.id}: the "check did not run" email could not be sent either`);
+    deps.log.warn("alerts: could not send the failed-check notice", { subscriber: subscriber.id, error: errorName(sendError) });
   }
 }
 

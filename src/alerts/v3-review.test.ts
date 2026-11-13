@@ -215,7 +215,9 @@ describe("CHECK: Buffer 429 mid-scan and Resend 429/5xx", () => {
     const response = await handleCron(cronRequest(), deps);
     expect(response.status).toBe(503);
     expect(response.headers.get("retry-after")).toBe("120");
-    expect([...h.redis.data.keys()].filter((k) => k.includes(":claim:"))).toHaveLength(0);
+    // Review 4: the only claim is the one "today's check did not run" notice (V4-1); no alert item is claimed.
+    expect([...h.redis.data.keys()].filter((k) => k.includes(":claim:"))).toHaveLength(1);
+    expect(h.sent.map((s) => s.message.subject)).toEqual(["PostGuard could not check your Buffer queue today"]);
   });
 
   it("Resend 429 today: claims released; tomorrow the same items go out once with the same idempotency key", async () => {
