@@ -68,7 +68,11 @@ const NOT_SET_UP: AlertStore = {
 };
 
 /** The real dependencies for the cron route. Everything else is testable without a network. */
+/** The cron route's maxDuration is 60 s; keep a margin for the response and the lock release. */
+export const RUN_BUDGET_MS = 55_000;
+
 export function buildDeps(request: Request, env: Env = process.env, fetchImpl?: typeof fetch): RunDeps {
+  const deadlineAt = Date.now() + RUN_BUDGET_MS;
   const { store: redisStore, configured } = storeFromEnv(env, fetchImpl);
   const store = redisStore;
   const now = () => new Date();
@@ -104,5 +108,6 @@ export function buildDeps(request: Request, env: Env = process.env, fetchImpl?: 
     config: { appUrl: appUrlFor(request, env), cadenceHours: 24, jitterHours: 1, leadHours: 2 },
     sleep,
     env,
+    deadlineAt,
   };
 }

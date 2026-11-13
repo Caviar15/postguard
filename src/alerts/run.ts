@@ -10,6 +10,8 @@ const HOUR = 3_600_000;
 const RUN_LOCK_MS = 10 * 60_000;
 /** A claim outlives any post it can be about: alerts only cover the next ~27 hours. */
 const CLAIM_TTL_MS = 3 * 24 * HOUR;
+/** Time kept for claiming and sending: the mail call alone may take its full 15 s timeout. */
+export const SEND_RESERVE_MS = 20_000;
 
 function errorName(error: unknown): string {
   return error instanceof Error ? error.name : "Error";
@@ -71,6 +73,14 @@ export async function runAlerts(deps: RunDeps, options: { dryRun?: boolean } = {
           result.previews!.push({ subject, text, html });
         }
         succeeded += 1;
+        continue;
+      }
+
+      // A send started this late could be cut off by Vercel's maxDuration after the claims were taken: the alert
+      // would then be suppressed for CLAIM_TTL_MS with no email. Fail loudly instead, claim nothing.
+      if (deps.deadlineAt !== undefined && items.length > 0 && (deps.clock ?? Date.now)() > deps.deadlineAt - SEND_RESERVE_MS) {
+        result.errors.push(`${subscriber.id}: ran out of time before sending; nothing was claimed, the next run will try again`);
+        deps.log.warn("alerts: not enough time left to send", { subscriber: subscriber.id });
         continue;
       }
 

@@ -95,6 +95,13 @@ export type RunDeps = {
   config: AlertConfig;
   sleep: (ms: number) => Promise<void>;
   env: Record<string, string | undefined>;
+  /**
+   * Epoch ms by which the function must be done (Vercel kills it at maxDuration). When less than the send
+   * reserve is left after the scan, nothing is claimed or sent, so the next run still alerts.
+   */
+  deadlineAt?: number;
+  /** Real clock for the deadline (tests fake it). Defaults to Date.now. */
+  clock?: () => number;
 };
 
 export type RunResult = {
