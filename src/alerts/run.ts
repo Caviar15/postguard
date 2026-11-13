@@ -2,7 +2,7 @@ import { createHash, timingSafeEqual } from "node:crypto";
 import { BufferRateLimitError } from "@/buffer/client";
 import type { ScanReport } from "@/domain/types";
 import { UnreadableGrantError } from "./crypto";
-import { escapeHtml, renderMessage } from "./message";
+import { escapeHtml, incompleteNotes, renderMessage } from "./message";
 import { horizonFor, selectAlertItems } from "./select";
 import type { AlertItem, RunDeps, RunResult } from "./types";
 
@@ -112,7 +112,19 @@ export async function runAlerts(deps: RunDeps, options: { dryRun?: boolean } = {
         }
         continue;
       }
-      await deps.store.setLastSuccess(subscriber.id, now.toISOString());
+      // Silent when clear is only honest when the check was complete. No email (it would claim more than was
+      // checked), but the run result says so, so a quota-truncated quiet day does not look like a clean "ok".
+      const gaps = incompleteNotes(report);
+      if (!delivered && gaps.length > 0) {
+        result.errors.push(`${subscriber.id}: the check was incomplete and found nothing new to alert: ${gaps.join(" ")}`);
+        deps.log.warn("alerts: the check was incomplete", { subscriber: subscriber.id, notes: gaps.length });
+      }
+      // The email (if any) has gone out. A store blip here must not report the run as failed.
+      try {
+        await deps.store.setLastSuccess(subscriber.id, now.toISOString());
+      } catch (error) {
+        deps.log.warn("alerts: could not record the last successful check", { subscriber: subscriber.id, error: errorName(error) });
+      }
       succeeded += 1;
     }
     if (result.errors.length > 0) result.status = succeeded > 0 ? "partial" : "failed";
