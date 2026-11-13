@@ -50,7 +50,7 @@ export interface Mailer {
 
 /** Read-only view of a subscriber's Buffer queue. */
 export interface QueueReader {
-  scan(subscriber: Subscriber, window: { from: Date; to: Date }): Promise<ScanReport>;
+  scan(subscriber: Subscriber, window: { from: Date; to: Date; includeDrafts?: boolean }): Promise<ScanReport>;
 }
 
 export type Release = () => Promise<void>;

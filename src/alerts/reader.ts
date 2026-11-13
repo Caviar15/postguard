@@ -11,13 +11,13 @@ export class LiveQueueReader implements QueueReader {
     private readonly run: typeof scanLive = scanLive,
   ) {}
 
-  async scan(subscriber: Subscriber, window: { from: Date; to: Date }): Promise<ScanReport> {
+  async scan(subscriber: Subscriber, window: { from: Date; to: Date; includeDrafts?: boolean }): Promise<ScanReport> {
     const accessToken = await this.accessTokenFor(subscriber);
     return this.run({
       accessToken,
       windowDays: (window.to.getTime() - window.from.getTime()) / DAY,
       organizationId: subscriber.organizationId || null,
-      includeDrafts: false,
+      includeDrafts: window.includeDrafts ?? false,
       now: window.from,
     });
   }
