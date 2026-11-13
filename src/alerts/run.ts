@@ -29,7 +29,9 @@ export async function runAlerts(deps: RunDeps, options: { dryRun?: boolean } = {
   if (options.dryRun) result.previews = [];
   let release: (() => Promise<void>) | null = null;
   try {
-    release = await deps.store.acquireLock("alerts-run", RUN_LOCK_MS);
+    // A dry run claims and sends nothing, and token refresh has its own lock (grant.ts), so it takes its own run lock:
+    // a dry run in the cron hour must not make the once-a-day real run answer "skipped-locked".
+    release = await deps.store.acquireLock(options.dryRun ? "alerts-dry-run" : "alerts-run", RUN_LOCK_MS);
     if (!release) return { ...result, status: "skipped-locked" };
     const subscribers = await deps.store.listSubscribers();
     // Email that cannot go out must fail loudly: a green cron that never delivers is the worst outcome.
