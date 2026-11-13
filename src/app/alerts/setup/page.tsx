@@ -46,7 +46,7 @@ export default async function AlertSetupPage({ searchParams }: { searchParams: P
         <p className="kicker">Owner setup</p>
         <h1>Alerts that come to you.</h1>
         <p className="lede">
-          Once a day PostGuard checks the posts that will publish in roughly the next 27 hours and emails you only when one has a Blocker or High problem. Same read-only access as the dashboard: <code>account:read</code> and <code>posts:read</code>.
+          Once a day PostGuard checks the posts that will publish in roughly the next 27 hours and emails you only when one has a Blocker or High problem. Same read-only access as the dashboard: <code>account:read</code> and <code>posts:read</code>, plus <code>offline_access</code> so the check can run while you are away.
         </p>
 
         {params.on ? <p className="banner" role="status">Alerts are on. The first check runs at the next scheduled time.</p> : null}

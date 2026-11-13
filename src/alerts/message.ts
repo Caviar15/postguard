@@ -156,7 +156,7 @@ export function renderMessage(items: AlertItem[], subscriber: Subscriber, ctx: R
     const snippet = captionSnippet(first.excerpt);
     if (snippet) lines.push(`Caption: “${snippet}”`);
     for (const item of entry.items) lines.push(`  [${LABEL[item.severity]}] ${item.title}: ${item.detail}`);
-    lines.push(`Open this post in Buffer: ${first.fixUrl}`);
+    lines.push(`Open the channel in Buffer (find the post at ${formatWhen(first.dueAt, subscriber.timeZone)}): ${first.fixUrl}`);
     lines.push(`See it in PostGuard: ${first.cardUrl}`, "");
   }
   for (const note of notes) lines.push(`This check was incomplete: ${note}`);
