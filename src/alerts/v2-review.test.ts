@@ -160,15 +160,14 @@ describe("N2: nothing in the alert path may hang until Vercel kills the function
   });
 });
 
-describe("N3: the setup code gate says nothing about the deployment to someone without the code", () => {
-  it("a wrong code gets 'code', never 'store', even when Redis is not configured", async () => {
-    vi.stubEnv("CRON_SECRET", "s".repeat(24));
+describe("N3: the owner gate says nothing about the deployment to someone who is not the owner", () => {
+  it("a cross-site POST gets 403 and a bare 'not from PostGuard', even when Redis is not configured", async () => {
     vi.stubEnv("KV_REST_API_URL", "");
     vi.stubEnv("KV_REST_API_TOKEN", "");
     const { POST } = await import("@/app/api/alerts/enable/route");
-    const body = new URLSearchParams({ code: "wrong-wrong-wrong-wrong" });
-    const response = await POST(new Request("https://postguard.test/api/alerts/enable", { method: "POST", body }));
-    expect(response.headers.get("location")).toContain("problem=code");
+    const response = await POST(new Request("https://postguard.test/api/alerts/enable", { method: "POST", headers: { origin: "https://evil.example" } }));
+    expect(response.status).toBe(403);
+    expect(await response.text()).toBe("This request did not come from PostGuard.");
     vi.unstubAllEnvs();
   });
 });

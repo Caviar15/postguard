@@ -504,6 +504,46 @@ code { font-size: 0.9em; background: #f6f1e7; padding: 1px 5px; border-radius: 4
 }
 .setup-form .cta-row { margin: 0; }
 button.button:disabled { opacity: 0.5; cursor: not-allowed; }
+.switch-row { margin: 6px 0 12px; }
+.switch {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  padding: 4px 16px 4px 4px;
+  min-height: 44px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: #fff;
+  color: var(--ink);
+  font: inherit;
+  font-weight: 650;
+  cursor: pointer;
+}
+.switch-track {
+  position: relative;
+  width: 52px;
+  height: 32px;
+  border-radius: 999px;
+  background: #8a8176;
+  transition: background 0.15s ease;
+  flex: none;
+}
+.switch-thumb {
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+  transition: transform 0.15s ease;
+}
+.switch[aria-checked="true"] .switch-track { background: #2f6b3a; }
+.switch[aria-checked="true"] .switch-thumb { transform: translateX(20px); }
+.switch:disabled { opacity: 0.5; cursor: not-allowed; }
+.switch:focus-visible { outline: 3px solid var(--stamp); outline-offset: 2px; }
+@media (prefers-reduced-motion: reduce) { .switch-track, .switch-thumb { transition: none; } }
 @media (max-width: 600px) {
   .email-head { padding: 10px 12px; }
   .email-head div { grid-template-columns: 56px minmax(0, 1fr); }

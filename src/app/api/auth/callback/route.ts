@@ -1,7 +1,10 @@
 import { NextResponse } from "next/server";
 import { exchangeAuthorizationCode } from "@/auth/oauth";
 import { storeFromEnv } from "@/alerts/deps";
-import { clearAlertSetup, clearOauthHandoff, isAlertSetupArmed, readOauthHandoff, writeSession } from "@/auth/session";
+import { decideOwner, fetchAccountId, type OwnerRecord } from "@/alerts/owner";
+import { UnreadableGrantError } from "@/alerts/crypto";
+import { safeNext } from "@/auth/next-path";
+import { clearAlertSetup, clearOauthHandoff, readAlertSetupArm, readOauthHandoff, writeSession } from "@/auth/session";
 import { getConfig, redirectUriFor } from "@/config";
 
 export const dynamic = "force-dynamic";
@@ -35,19 +38,32 @@ export async function GET(request: Request) {
     });
     if (handoff.watch) {
       // A separate Buffer grant for background alerts, saved encrypted on the server. It is not a browser session.
-      const armed = await isAlertSetupArmed();
+      const arm = await readAlertSetupArm();
       await clearAlertSetup();
-      if (!armed) return NextResponse.redirect(new URL("/alerts/setup?problem=code", request.url));
+      if (!arm) return NextResponse.redirect(new URL("/alerts/setup?problem=arm", request.url));
       if (!tokens.refreshToken) return NextResponse.redirect(new URL("/alerts/setup?problem=refresh", request.url));
       try {
-        await storeFromEnv().store.enable({ accessToken: tokens.accessToken, refreshToken: tokens.refreshToken, expiresAt: tokens.expiresAt });
+        // The grant must belong to the owner account that armed this: a different Buffer login in the sign-in step
+        // would otherwise put someone else's queue behind the owner's switch. Ownership is decided again here.
+        const grantAccountId = await fetchAccountId(tokens.accessToken);
+        if (!grantAccountId || grantAccountId !== arm.accountId) return NextResponse.redirect(new URL("/alerts/setup?problem=owner", request.url));
+        const { store } = storeFromEnv();
+        let record: OwnerRecord;
+        try {
+          record = await store.readSubscriber();
+        } catch (readError) {
+          if (!(readError instanceof UnreadableGrantError)) throw readError;
+          record = "unreadable";
+        }
+        if (!decideOwner(grantAccountId, record, process.env).owner) return NextResponse.redirect(new URL("/alerts/setup?problem=owner", request.url));
+        await store.enable({ accessToken: tokens.accessToken, refreshToken: tokens.refreshToken, expiresAt: tokens.expiresAt }, new Date(), grantAccountId);
       } catch {
-        return NextResponse.redirect(new URL("/alerts/setup?problem=store", request.url));
+        return NextResponse.redirect(new URL("/alerts/setup?problem=check", request.url));
       }
       return NextResponse.redirect(new URL("/alerts/setup?on=1", request.url));
     }
     await writeSession(tokens);
-    return NextResponse.redirect(new URL("/dashboard", request.url));
+    return NextResponse.redirect(new URL(handoff.next ? safeNext(handoff.next) : "/dashboard", request.url));
   } catch (exchangeError) {
     const message = exchangeError instanceof Error ? exchangeError.message : "token_exchange_failed";
     return NextResponse.redirect(new URL(`/?auth_error=${encodeURIComponent(message)}`, request.url));

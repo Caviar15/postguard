@@ -1,14 +1,17 @@
 import { NextResponse } from "next/server";
-import { hasSecretValue } from "@/alerts/gate";
+import { authorizeOwner, crossSite, denyOwner, isSameOrigin } from "@/alerts/owner";
 import { storeFromEnv } from "@/alerts/deps";
 
 export const dynamic = "force-dynamic";
 
-/** Turns alerts off and deletes the stored Buffer token. Same code check as turning them on. */
+/**
+ * Turns alerts off and deletes the stored Buffer tokens. The owner's account id stays on the record (it is not
+ * a credential), so turning alerts off never hands ownership to the next visitor.
+ */
 export async function POST(request: Request) {
-  const form = await request.formData().catch(() => null);
-  const code = typeof form?.get("code") === "string" ? String(form?.get("code")) : "";
-  if (!hasSecretValue(code, process.env)) return NextResponse.redirect(new URL("/alerts/setup?problem=code", request.url), 303);
+  if (!isSameOrigin(request)) return crossSite();
+  const access = await authorizeOwner();
+  if (access.status !== "owner") return denyOwner(request, access);
   try {
     await storeFromEnv().store.disable();
   } catch {

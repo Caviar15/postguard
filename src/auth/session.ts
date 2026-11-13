@@ -13,6 +13,8 @@ type OauthHandoff = {
   verifier: string;
   /** Set by /api/auth/start?watch=1. The result is shown once for the alert setup instead of becoming a session. */
   watch?: boolean;
+  /** An in-app path to return to after a normal sign-in (not used for the alert sign-in). */
+  next?: string;
 };
 
 function cookieOptions(maxAge: number) {
@@ -77,7 +79,12 @@ export async function readOauthHandoff(): Promise<OauthHandoff | null> {
   if (!token) return null;
   const handoff = open<OauthHandoff>(token, sessionSecret);
   if (!handoff?.state || !handoff.verifier) return null;
-  return { state: handoff.state, verifier: handoff.verifier, watch: handoff.watch === true };
+  return {
+    state: handoff.state,
+    verifier: handoff.verifier,
+    watch: handoff.watch === true,
+    ...(typeof handoff.next === "string" ? { next: handoff.next } : {}),
+  };
 }
 
 export async function clearOauthHandoff(): Promise<void> {
@@ -88,25 +95,33 @@ export async function clearOauthHandoff(): Promise<void> {
 const ARM_COOKIE = "pg_alert_arm";
 
 /**
- * Turning alerts on stores a Buffer grant on the server, so it is gated: the owner proves they can read
- * the deployment's CRON_SECRET on the setup page, which arms this 10-minute cookie. Only an armed browser
- * can finish the "connect for alerts" sign-in.
+ * Turning alerts on stores a Buffer grant on the server, so it is gated. The routes arm this 10-minute cookie
+ * only for a visitor whose signed-in PostGuard session belongs to the alert owner's Buffer account, and the
+ * cookie records that account id. Only an armed browser can finish the "connect for alerts" sign-in, and the
+ * callback checks that the grant belongs to the same account.
  */
-export async function armAlertSetup(): Promise<void> {
+export async function armAlertSetup(accountId: string): Promise<void> {
   const { sessionSecret } = getConfig();
   if (!sessionSecret) throw new Error("SESSION_SECRET is not set.");
   const jar = await cookies();
-  jar.set(ARM_COOKIE, seal({ until: Date.now() + 10 * 60_000 }, sessionSecret), cookieOptions(10 * 60));
+  jar.set(ARM_COOKIE, seal({ until: Date.now() + 10 * 60_000, accountId }, sessionSecret), cookieOptions(10 * 60));
+}
+
+/** The armed owner account id, or null when the browser is not armed (or the arm ran out). */
+export async function readAlertSetupArm(): Promise<{ accountId: string } | null> {
+  const { sessionSecret } = getConfig();
+  if (!sessionSecret) return null;
+  const jar = await cookies();
+  const value = jar.get(ARM_COOKIE)?.value;
+  if (!value) return null;
+  const armed = open<{ until?: number; accountId?: unknown }>(value, sessionSecret);
+  if (typeof armed?.until !== "number" || armed.until <= Date.now()) return null;
+  if (typeof armed.accountId !== "string" || !armed.accountId) return null;
+  return { accountId: armed.accountId };
 }
 
 export async function isAlertSetupArmed(): Promise<boolean> {
-  const { sessionSecret } = getConfig();
-  if (!sessionSecret) return false;
-  const jar = await cookies();
-  const value = jar.get(ARM_COOKIE)?.value;
-  if (!value) return false;
-  const armed = open<{ until?: number }>(value, sessionSecret);
-  return typeof armed?.until === "number" && armed.until > Date.now();
+  return (await readAlertSetupArm()) !== null;
 }
 
 export async function clearAlertSetup(): Promise<void> {

@@ -151,6 +151,7 @@ export function Dashboard({
         <Brand />
         <div className="top-actions">
           <span className="pill">{report.mode === "demo" ? "Demo queue" : report.organization.name}</span>
+          <Link className="button secondary small" href="/alerts/setup">Email alerts</Link>
           {report.mode === "demo" ? (
             <a className="button secondary small" href="/api/auth/start">Connect Buffer</a>
           ) : (

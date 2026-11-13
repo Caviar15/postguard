@@ -5,7 +5,7 @@ import { handleSendNow } from "@/alerts/send-now";
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 
-/** Owner-triggered test send from /alerts/setup. Requires the setup code. */
+/** Owner-triggered test send from /alerts/setup. Owner session only, no code. */
 export async function POST(request: Request) {
   return handleSendNow(request, buildDeps(request));
 }

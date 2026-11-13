@@ -10,7 +10,7 @@ import { serviceLabel } from "@/components/service";
 import { findingsForCard } from "@/domain/readiness";
 import { SEVERITY_LABEL, type Finding, type ScanReport, type Severity } from "@/domain/types";
 import { UnreadableGrantError } from "./crypto";
-import { hasSecretValue } from "./gate";
+import { authorizeOwner, crossSite, denyOwner, isSameOrigin, type OwnerAccess } from "./owner";
 import { TokenRefreshUnavailableError } from "./grant";
 import {
   captionSnippet,
@@ -261,15 +261,19 @@ function isGrantError(error: unknown): boolean {
 }
 
 /**
- * POST /api/alerts/send-now. Requires the setup code. Never claims, never writes last-success,
- * and never takes the daily cron lock.
+ * POST /api/alerts/send-now. Same-origin POST from the alert owner's signed-in session; no typed code.
+ * Never claims, never writes last-success, and never takes the daily cron lock.
  */
-export async function handleSendNow(request: Request, deps: RunDeps): Promise<Response> {
-  const form = await request.formData().catch(() => null);
-  const code = typeof form?.get("code") === "string" ? String(form.get("code")) : "";
-  if (!hasSecretValue(code, deps.env)) return back(request, "problem=code");
+export async function handleSendNow(
+  request: Request,
+  deps: RunDeps,
+  authorize: () => Promise<OwnerAccess> = authorizeOwner,
+): Promise<Response> {
+  if (!isSameOrigin(request)) return crossSite();
+  const access = await authorize();
+  if (access.status !== "owner") return denyOwner(request, access);
 
-  // Only after the code is right: a visitor without it learns nothing about what is configured.
+  // Only for the owner: anyone else learns nothing about what is configured.
   const redisUrl = (deps.env.KV_REST_API_URL || deps.env.UPSTASH_REDIS_REST_URL || "").trim();
   const redisToken = (deps.env.KV_REST_API_TOKEN || deps.env.UPSTASH_REDIS_REST_TOKEN || "").trim();
   if (!redisUrl || !redisToken) return back(request, "problem=store");

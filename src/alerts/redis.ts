@@ -67,6 +67,11 @@ export type StoredSubscriber = {
   accessToken: string | null;
   expiresAt: number;
   enabledAt: string;
+  /**
+   * The Buffer account id that turned alerts on: only that account may change them. Kept after turn-off and
+   * unsubscribe (the tokens are wiped, this is not a credential). Absent on grants made before it was stored.
+   */
+  accountId?: string;
 };
 
 export const OWNER_ID = "owner";
@@ -113,7 +118,7 @@ export class RedisAlertStore implements AlertStore {
   }
 
   /** The owner turns alerts on: a new grant, a new unsubscribe token, and a clean slate. */
-  async enable(tokens: { accessToken: string; refreshToken: string; expiresAt: number }, now = new Date()): Promise<void> {
+  async enable(tokens: { accessToken: string; refreshToken: string; expiresAt: number }, now = new Date(), accountId?: string): Promise<void> {
     await this.writeSubscriber({
       id: OWNER_ID,
       unsubscribeToken: randomBytes(32).toString("base64url"),
@@ -122,6 +127,7 @@ export class RedisAlertStore implements AlertStore {
       accessToken: tokens.accessToken,
       expiresAt: tokens.expiresAt,
       enabledAt: now.toISOString(),
+      ...(accountId ? { accountId } : {}),
     });
   }
 
