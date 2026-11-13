@@ -167,7 +167,15 @@ function failureKind(error: unknown): CheckFailure {
 /** At most one "today's check did not run" email per subscriber per UTC day. Never throws. */
 async function notifyCheckFailed(deps: RunDeps, subscriber: Subscriber, now: Date, error: unknown, result: RunResult): Promise<void> {
   if (deps.deadlineAt !== undefined && (deps.clock ?? Date.now)() > deps.deadlineAt - SEND_RESERVE_MS) return;
-  const key = `${subscriber.id}|check-failed|${now.toISOString().slice(0, 10)}`;
+  const day = now.toISOString().slice(0, 10);
+  // "Today's check did not run" is false after a check already succeeded today (a manual re-run, or a late duplicate
+  // delivery): the owner already got that check's alert, or its silence was an honest "checked and clear".
+  const last = await deps.store.getLastSuccess(subscriber.id).catch(() => null);
+  if (last && last.slice(0, 10) === day) {
+    deps.log.info("alerts: a check already succeeded today, so no failed-check notice", { subscriber: subscriber.id });
+    return;
+  }
+  const key = `${subscriber.id}|check-failed|${day}`;
   let claimed = false;
   try {
     claimed = await deps.store.claim(key, CLAIM_TTL_MS);
