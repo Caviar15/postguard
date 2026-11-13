@@ -83,18 +83,34 @@ try {
   let res = await cron("?dryRun=1"); assert.equal(res.status, 200);
   assert.equal((await res.json()).sent, 0); ok("cron with alerts off does nothing");
 
-  res = await go("/api/alerts/enable", form({ code: "wrong-wrong-wrong-wrong" }));
-  assert.match(res.headers.get("location"), /problem=code/); ok("wrong setup code refused");
-  res = await go("/api/alerts/enable", form({ code: CRON }));
+  const same = { origin: base };
+  res = await go("/api/alerts/enable", { method: "POST" });
+  assert.equal(res.status, 403); ok("a POST with no Origin is refused (CSRF guard)");
+  res = await go("/api/alerts/enable", { method: "POST", headers: { origin: "https://evil.example" } });
+  assert.equal(res.status, 403); ok("a cross-site POST is refused");
+  res = await go("/api/alerts/enable", { method: "POST", headers: same });
+  assert.match(res.headers.get("location"), /problem=signin/); ok("signed out: no switch, sent to sign in (no code)");
+  // A normal PostGuard sign-in, returning to the alerts page. Its access token lasts an hour; the alert grant's is short on purpose.
+  const setTtl = (ttl) => fs.writeFileSync(AUTH_STATE, JSON.stringify({ ...JSON.parse(fs.readFileSync(AUTH_STATE, "utf8")), ttl }));
+  setTtl(3600);
+  res = await go("/api/auth/start?next=%2Falerts%2Fsetup");
+  let authorize = new URL(res.headers.get("location"));
+  res = await go(`/api/auth/callback?code=abc&state=${authorize.searchParams.get("state")}`);
+  assert.match(res.headers.get("location"), /\/alerts\/setup$/); ok("normal sign-in returns to /alerts/setup");
+  setTtl(30);
+  let html = await (await go("/alerts/setup")).text();
+  assert.match(html, /role="switch"/); assert.match(html, /aria-checked="false"/); assert.doesNotMatch(html, /type="password"/); ok("signed-in owner sees the Off switch and no code box");
+  res = await go("/api/alerts/enable", { method: "POST", headers: same });
   assert.match(res.headers.get("location"), /\/api\/auth\/start\?watch=1/);
   res = await go("/api/auth/start?watch=1");
-  const authorize = new URL(res.headers.get("location"));
+  authorize = new URL(res.headers.get("location"));
   assert.equal(authorize.hostname, "auth.buffer.com");
   assert.equal(authorize.searchParams.get("scope"), "account:read posts:read offline_access"); ok("alert sign-in asks for the same read-only scopes");
   res = await go(`/api/auth/callback?code=abc&state=${authorize.searchParams.get("state")}`);
   assert.match(res.headers.get("location"), /alerts\/setup\?on=1/);
-  assert.equal([...jar.keys()].some((k) => k.startsWith("pg_sess")), false); ok("alerts on; no browser session was created");
-  assert.equal([...data.values()].some((e) => /RT1|AT1/.test(e.value)), false); ok("stored grant is encrypted");
+  assert.equal([...data.values()].some((e) => /RT2|AT2/.test(e.value)), false); ok("alerts on; stored grant is encrypted");
+  html = await (await go("/alerts/setup?on=1")).text();
+  assert.match(html, /aria-checked="true"/); assert.match(html, /Send test alert now/); ok("switch shows On and the demo test button appears");
 
   res = await cron(); assert.equal(res.status, 200);
   let body = await res.json();
@@ -108,19 +124,19 @@ try {
   assert.match(mail.body.text, /#post-p_paused/); assert.match(mail.body.text, /#post-p_todo/);
   assert.doesNotMatch(mail.body.text, /p_far|p_fine/);
   assert.match(mail.body.text, /publish\.buffer\.com\/channels\/c_paused\?post=p_paused/);
-  for (const secret of ["AT", "RT", "flow-session-secret", CRON, "re_flow_key", "redis-flow-token"]) {
+  for (const secret of ["AT1", "AT2", "RT1", "RT2", "flow-session-secret", CRON, "re_flow_key", "redis-flow-token"]) {
     const { authorization, ...otherHeaders } = mail.headers; // the provider key legitimately travels in Authorization
     const hay = JSON.stringify(mail.body) + JSON.stringify(otherHeaders) + JSON.stringify(body);
-    assert.equal(hay.includes(secret === "AT" ? "AT1" : secret === "RT" ? "RT1" : secret), false, `leaked ${secret}`);
+    assert.equal(hay.includes(secret), false, `leaked ${secret}`);
   }
   ok("one email: the paused-queue post and the TODO post, not the far or the fine one; headers and deep links present; no secret in it");
   const auth1 = JSON.parse(fs.readFileSync(AUTH_STATE, "utf8"));
-  assert.equal(auth1.refreshes, 1); assert.equal(auth1.revoked, false); assert.equal(auth1.current, "RT2"); ok("expired access token refreshed once; the rotated token was saved");
+  assert.equal(auth1.refreshes, 1); assert.equal(auth1.revoked, false); assert.equal(auth1.current, "RT3"); ok("expired access token refreshed once; the rotated token was saved");
 
   res = await cron(); body = await res.json();
   assert.equal(mails.length, 1); assert.ok(body.suppressed >= 2); ok("a second run sends nothing (already alerted)");
   const auth2 = JSON.parse(fs.readFileSync(AUTH_STATE, "utf8"));
-  assert.equal(auth2.revoked, false); assert.equal(auth2.refreshes, 2); assert.equal(auth2.current, "RT3"); ok("second refresh used the rotated token; grant still valid");
+  assert.equal(auth2.revoked, false); assert.equal(auth2.refreshes, 2); assert.equal(auth2.current, "RT4"); ok("second refresh used the rotated token; grant still valid");
 
   const [concurrentA, concurrentB] = await Promise.all([cron(), cron()]);
   assert.equal(mails.length, 1); assert.equal(JSON.parse(fs.readFileSync(AUTH_STATE, "utf8")).revoked, false); ok("two overlapping runs send nothing new and do not revoke the grant");
@@ -136,7 +152,7 @@ try {
   assert.equal(body.sent, 0); assert.equal(mails.length, 1);
   assert.equal(JSON.parse(fs.readFileSync(AUTH_STATE, "utf8")).refreshes, before); ok("after unsubscribing: no run reads Buffer, no email, token deleted");
   assert.equal(fs.readFileSync("/tmp/pg-alerts-flow-mock.log", "utf8").toLowerCase().includes("mutation"), false); ok("no Buffer mutation was ever sent");
-  assert.equal(serverLog.includes("RT1") || serverLog.includes("AT1") || serverLog.includes("re_flow_key"), false); ok("server log has no token");
+  assert.equal(serverLog.includes("RT2") || serverLog.includes("AT2") || serverLog.includes("re_flow_key"), false); ok("server log has no token");
   console.log(`\n${steps.length} checks passed`);
   cleanup(); process.exit(0);
 } catch (error) {

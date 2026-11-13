@@ -38,6 +38,7 @@ export default async function HomePage({
         <Brand />
         <div className="top-actions">
           <Link href="/privacy">Privacy</Link>
+          <Link className="button secondary small" href="/alerts/setup">Email alerts</Link>
           <Link className="button secondary small" href="/demo">Demo</Link>
         </div>
         <p className="proof">

@@ -23,16 +23,25 @@ import { GET as callbackGET } from "@/app/api/auth/callback/route";
 import { GET as unsubGET, POST as unsubPOST } from "@/app/api/alerts/unsubscribe/route";
 import { POST as enablePOST } from "@/app/api/alerts/enable/route";
 import { POST as disablePOST } from "@/app/api/alerts/disable/route";
-import { isAlertSetupArmed, readOauthHandoff } from "@/auth/session";
+import { isAlertSetupArmed, readOauthHandoff, writeSession } from "@/auth/session";
 import { FakeRedis } from "./fake-redis";
 import { storeFromEnv } from "./deps";
 
 const ORIGIN = "https://postguard.test";
+const OWNER = "acct-owner";
+const STRANGER = "acct-stranger";
+/** Buffer access token -> the account it belongs to (the mocked `account` query). */
+const ACCOUNTS: Record<string, string> = { "AT-session-owner": OWNER, "AT-session-stranger": STRANGER, "AT-route-secret": OWNER };
 let redis: FakeRedis;
 let fetchSpy: { mockRestore: () => void };
 
-function form(values: Record<string, string>): RequestInit {
-  return { method: "POST", body: new URLSearchParams(values), headers: { "content-type": "application/x-www-form-urlencoded" } };
+/** A same-origin form POST, as a browser sends it. */
+function post(path: string, headers: Record<string, string> = { origin: ORIGIN }): Request {
+  return new Request(`${ORIGIN}${path}`, { method: "POST", headers: { "content-type": "application/x-www-form-urlencoded", ...headers } });
+}
+
+async function signIn(who: "owner" | "stranger" = "owner", expiresInMs = 3_600_000) {
+  await writeSession({ accessToken: `AT-session-${who}`, refreshToken: "RT-session", expiresAt: Date.now() + expiresInMs, scope: "" });
 }
 
 beforeEach(() => {
@@ -45,6 +54,12 @@ beforeEach(() => {
   fetchSpy = vi.spyOn(globalThis, "fetch").mockImplementation((async (input: RequestInfo | URL, init?: RequestInit) => {
     const url = typeof input === "string" ? input : input instanceof URL ? input.toString() : input.url;
     if (url === "https://redis.test") return new Response(JSON.stringify({ result: await redis.command(JSON.parse(String(init?.body))) }));
+    if (url === "https://api.buffer.com") {
+      const auth = new Headers(init?.headers).get("authorization") ?? "";
+      const id = ACCOUNTS[auth.replace(/^Bearer /, "")];
+      if (!id) return new Response(JSON.stringify({ errors: [{ message: "unauthorized" }] }), { status: 401 });
+      return new Response(JSON.stringify({ data: { account: { id, organizations: [{ id: "o1", name: "Org" }] } } }));
+    }
     if (url === "https://auth.buffer.com/token") {
       return new Response(JSON.stringify({ access_token: "AT-route-secret", refresh_token: "RT-route-secret", expires_in: 3600 }));
     }
@@ -55,6 +70,7 @@ beforeEach(() => {
 afterEach(() => {
   fetchSpy.mockRestore();
   delete process.env.CRON_SECRET;
+  delete process.env.ALERT_OWNER_BUFFER_ACCOUNT_ID;
 });
 
 describe("GET /api/cron/alerts", () => {
@@ -91,71 +107,139 @@ describe("GET /api/cron/alerts", () => {
   });
 });
 
-describe("turning alerts on needs the setup code", () => {
-  it("a wrong or empty code does not arm the sign-in", async () => {
-    for (const code of ["", "wrong-code-wrong-code-wrong", CRON.slice(0, 20), `${CRON}x`]) {
-      const res = await enablePOST(new Request(`${ORIGIN}/api/alerts/enable`, form({ code })));
-      expect(new URL(res.headers.get("location")!).search).toContain("problem=code");
-    }
+const locationOf = (res: Response) => new URL(res.headers.get("location")!, ORIGIN);
+
+describe("turning alerts on needs the owner's signed-in session, not a code", () => {
+  it("a signed-out visitor is sent to sign in and nothing is armed", async () => {
+    const res = await enablePOST(post("/api/alerts/enable"));
+    expect(locationOf(res).search).toBe("?problem=signin");
     expect(await isAlertSetupArmed()).toBe(false);
   });
 
-  it("with no CRON_SECRET configured no code works, not even an empty one", async () => {
-    delete process.env.CRON_SECRET;
-    const res = await enablePOST(new Request(`${ORIGIN}/api/alerts/enable`, form({ code: "undefined" })));
-    expect(new URL(res.headers.get("location")!).search).toContain("problem=code");
+  it("a session Buffer rejects counts as signed out", async () => {
+    await writeSession({ accessToken: "AT-revoked", refreshToken: null, expiresAt: Date.now() + 3_600_000, scope: "" });
+    expect(locationOf(await enablePOST(post("/api/alerts/enable"))).search).toBe("?problem=signin");
     expect(await isAlertSetupArmed()).toBe(false);
   });
 
-  it("the right code arms it and continues to the Buffer sign-in in alert mode", async () => {
-    const res = await enablePOST(new Request(`${ORIGIN}/api/alerts/enable`, form({ code: CRON })));
-    expect(new URL(res.headers.get("location")!).pathname).toBe("/api/auth/start");
+  it("an expired session with no refresh token counts as signed out; one with a refresh token is renewed first", async () => {
+    await writeSession({ accessToken: "AT-session-owner", refreshToken: null, expiresAt: Date.now() - 1000, scope: "" });
+    expect(locationOf(await enablePOST(post("/api/alerts/enable"))).search).toBe("?problem=signin");
+    await writeSession({ accessToken: "AT-session-owner", refreshToken: "RT", expiresAt: Date.now() - 1000, scope: "" });
+    const res = locationOf(await enablePOST(post("/api/alerts/enable")));
+    expect(res.pathname).toBe("/api/auth/refresh");
+    expect(res.searchParams.get("next")).toBe("/alerts/setup");
+    expect(await isAlertSetupArmed()).toBe(false);
+  });
+
+  it("a signed-in stranger is refused when the owner is configured, and nothing is armed", async () => {
+    process.env.ALERT_OWNER_BUFFER_ACCOUNT_ID = OWNER;
+    await signIn("stranger");
+    const res = await enablePOST(post("/api/alerts/enable"));
+    expect(locationOf(res).search).toBe("?problem=owner");
+    expect(await isAlertSetupArmed()).toBe(false);
+  });
+
+  it("the configured owner arms the sign-in and continues to the Buffer sign-in in alert mode", async () => {
+    process.env.ALERT_OWNER_BUFFER_ACCOUNT_ID = OWNER;
+    await signIn("owner");
+    const res = await enablePOST(post("/api/alerts/enable"));
+    expect(locationOf(res).pathname).toBe("/api/auth/start");
     expect(await isAlertSetupArmed()).toBe(true);
     await startGET(new Request(`${ORIGIN}/api/auth/start?watch=1`));
     expect((await readOauthHandoff())?.watch).toBe(true);
   });
 
+  it("with no owner set and no grant, the first signed-in account claims it", async () => {
+    await signIn("stranger");
+    expect(locationOf(await enablePOST(post("/api/alerts/enable"))).pathname).toBe("/api/auth/start");
+  });
+
+  it("a cross-site POST is refused even with the owner's cookies (no Origin, wrong Origin)", async () => {
+    process.env.ALERT_OWNER_BUFFER_ACCOUNT_ID = OWNER;
+    await signIn("owner");
+    for (const headers of [{}, { origin: "https://evil.example" }, { origin: "null" }, { origin: ORIGIN, host: "evil.example" }] as Array<Record<string, string>>) {
+      const res = await enablePOST(post("/api/alerts/enable", headers));
+      expect(res.status, JSON.stringify(headers)).toBe(403);
+    }
+    expect((await disablePOST(post("/api/alerts/disable", { origin: "https://evil.example" }))).status).toBe(403);
+    expect(await isAlertSetupArmed()).toBe(false);
+  });
+
   it("an unarmed browser cannot start the alert sign-in", async () => {
     const res = await startGET(new Request(`${ORIGIN}/api/auth/start?watch=1`));
-    expect(new URL(res.headers.get("location")!).pathname).toBe("/alerts/setup");
+    expect(locationOf(res).pathname).toBe("/alerts/setup");
     expect(await readOauthHandoff()).toBeNull();
   });
 
-  async function reachCallback(armed: boolean) {
-    if (armed) await enablePOST(new Request(`${ORIGIN}/api/alerts/enable`, form({ code: CRON })));
+  async function reachCallback(armed: boolean, grantAccount = OWNER) {
+    process.env.ALERT_OWNER_BUFFER_ACCOUNT_ID ??= OWNER;
+    ACCOUNTS["AT-route-secret"] = grantAccount;
+    if (armed) {
+      await signIn("owner");
+      await enablePOST(post("/api/alerts/enable"));
+    }
     // Not armed: write the handoff directly, as if someone crafted the start step.
     const { writeOauthHandoff } = await import("@/auth/session");
     await writeOauthHandoff({ state: "st", verifier: "v", watch: true });
-    return callbackGET(new Request(`${ORIGIN}/api/auth/callback?code=abc&state=st`));
+    try {
+      return await callbackGET(new Request(`${ORIGIN}/api/auth/callback?code=abc&state=st`));
+    } finally {
+      ACCOUNTS["AT-route-secret"] = OWNER;
+    }
   }
 
-  it("the alert callback stores the grant encrypted on the server and creates NO browser session", async () => {
+  it("the alert callback stores the grant encrypted, with the owner's account id, and creates NO new browser session", async () => {
     const res = await reachCallback(true);
-    expect(new URL(res.headers.get("location")!).search).toContain("on=1");
-    expect(jar.has("pg_sess_0")).toBe(false);
+    expect(locationOf(res).search).toContain("on=1");
+    expect(jar.get("pg_sess_n")).toBe("1"); // only the sign-in the owner already had
     expect(await storeFromEnv(process.env).store.isEnabled()).toBe(true);
+    expect((await storeFromEnv(process.env).store.readSubscriber())?.accountId).toBe(OWNER);
     const stored = JSON.stringify([...redis.data.values()]);
     expect(stored).not.toContain("RT-route-secret");
     expect(stored).not.toContain("AT-route-secret");
+    expect(stored).not.toContain(OWNER);
     expect(await isAlertSetupArmed()).toBe(false); // single use
   });
 
   it("without the arm cookie the callback stores nothing", async () => {
     const res = await reachCallback(false);
-    expect(new URL(res.headers.get("location")!).search).toContain("problem=code");
+    expect(locationOf(res).search).toContain("problem=arm");
     expect(await storeFromEnv(process.env).store.isEnabled()).toBe(false);
     expect(redis.data.size).toBe(0);
   });
 
-  it("turning alerts off needs the code too, then deletes the token", async () => {
-    await reachCallback(true);
-    const denied = await disablePOST(new Request(`${ORIGIN}/api/alerts/disable`, form({ code: "nope-nope-nope-nope-nope" })));
-    expect(new URL(denied.headers.get("location")!).search).toContain("problem=code");
-    expect(await storeFromEnv(process.env).store.isEnabled()).toBe(true);
-    const done = await disablePOST(new Request(`${ORIGIN}/api/alerts/disable`, form({ code: CRON })));
-    expect(new URL(done.headers.get("location")!).search).toContain("off=1");
+  it("a Buffer login for a different account in the alert sign-in stores nothing", async () => {
+    const res = await reachCallback(true, STRANGER);
+    expect(locationOf(res).search).toContain("problem=owner");
     expect(await storeFromEnv(process.env).store.isEnabled()).toBe(false);
-    expect((await storeFromEnv(process.env).store.readSubscriber())?.refreshToken).toBeNull();
+    expect(redis.data.size).toBe(0);
+  });
+
+  it("turning alerts off needs the owner too, then deletes the tokens but keeps the owner id", async () => {
+    await reachCallback(true);
+    await signIn("stranger");
+    const denied = await disablePOST(post("/api/alerts/disable"));
+    expect(locationOf(denied).search).toBe("?problem=owner");
+    expect(await storeFromEnv(process.env).store.isEnabled()).toBe(true);
+    await signIn("owner");
+    const done = await disablePOST(post("/api/alerts/disable"));
+    expect(locationOf(done).search).toContain("off=1");
+    expect(await storeFromEnv(process.env).store.isEnabled()).toBe(false);
+    const record = await storeFromEnv(process.env).store.readSubscriber();
+    expect(record?.refreshToken).toBeNull();
+    expect(record?.accessToken).toBeNull();
+    expect(record?.accountId).toBe(OWNER);
+  });
+
+  it("a normal sign-in can return to the alerts page, and only to an in-app path", async () => {
+    await startGET(new Request(`${ORIGIN}/api/auth/start?next=%2Falerts%2Fsetup`));
+    expect((await readOauthHandoff())?.next).toBe("/alerts/setup");
+    const ok = await callbackGET(new Request(`${ORIGIN}/api/auth/callback?code=abc&state=${(await readOauthHandoff())!.state}`));
+    expect(locationOf(ok).pathname).toBe("/alerts/setup");
+    await startGET(new Request(`${ORIGIN}/api/auth/start?next=${encodeURIComponent("//evil.example")}`));
+    const bad = await callbackGET(new Request(`${ORIGIN}/api/auth/callback?code=abc&state=${(await readOauthHandoff())!.state}`));
+    expect(locationOf(bad).pathname).toBe("/dashboard");
   });
 });
 
@@ -166,7 +250,9 @@ describe("/api/alerts/unsubscribe", () => {
     return owner!.unsubscribeToken;
   }
   async function reachCallbackArmed() {
-    await enablePOST(new Request(`${ORIGIN}/api/alerts/enable`, form({ code: CRON })));
+    process.env.ALERT_OWNER_BUFFER_ACCOUNT_ID = OWNER;
+    await signIn("owner");
+    await enablePOST(post("/api/alerts/enable"));
     const { writeOauthHandoff } = await import("@/auth/session");
     await writeOauthHandoff({ state: "st", verifier: "v", watch: true });
     await callbackGET(new Request(`${ORIGIN}/api/auth/callback?code=abc&state=st`));

@@ -14,6 +14,7 @@ import {
   renderTestMessage,
   selectDemoAlertItems,
 } from "./send-now";
+import type { OwnerAccess } from "./owner";
 import type { Mailer, QueueReader, RunDeps, Subscriber } from "./types";
 
 const NOW = new Date("2026-11-13T08:30:00Z");
@@ -84,13 +85,12 @@ function report(cards: PostCard[], findings: Finding[]): ScanReport {
   };
 }
 
-function form(code: string): Request {
-  return new Request(`${ORIGIN}/api/alerts/send-now`, {
-    method: "POST",
-    body: new URLSearchParams({ code }),
-    headers: { "content-type": "application/x-www-form-urlencoded" },
-  });
+/** A same-origin form POST, as the button on /alerts/setup sends it. No code field. */
+function post(headers: Record<string, string> = { origin: ORIGIN }): Request {
+  return new Request(`${ORIGIN}/api/alerts/send-now`, { method: "POST", headers: { "content-type": "application/x-www-form-urlencoded", ...headers } });
 }
+
+const asOwner = async (): Promise<OwnerAccess> => ({ status: "owner", accountId: "acct-owner", claim: false });
 
 function locationOf(res: Response): URL {
   return new URL(res.headers.get("location")!, ORIGIN);
@@ -168,28 +168,11 @@ const DRAFT_AND_FAR = report(
 );
 
 describe("POST /api/alerts/send-now", () => {
-  const prior = { CRON_SECRET: process.env.CRON_SECRET };
-  afterEach(() => {
-    if (prior.CRON_SECRET === undefined) delete process.env.CRON_SECRET;
-    else process.env.CRON_SECRET = prior.CRON_SECRET;
-  });
-
-  it("a wrong or empty code redirects back and does not reveal config", async () => {
-    process.env.CRON_SECRET = CRON;
-    for (const code of ["", "wrong-code-wrong-code", CRON.slice(0, 20), `${CRON}x`]) {
-      const res = await sendNowPOST(form(code));
-      expect(res.status).toBe(303);
-      const url = locationOf(res);
-      expect(url.pathname).toBe("/alerts/setup");
-      expect(url.searchParams.get("problem")).toBe("code");
-      expect(url.href).not.toContain(CRON);
+  it("a cross-site or origin-less POST is refused with 403 before anything is read", async () => {
+    for (const headers of [{}, { origin: "https://evil.example" }, { origin: "null" }] as Array<Record<string, string>>) {
+      const res = await sendNowPOST(post(headers));
+      expect(res.status, JSON.stringify(headers)).toBe(403);
     }
-  });
-
-  it("with no CRON_SECRET configured no code works", async () => {
-    delete process.env.CRON_SECRET;
-    const res = await sendNowPOST(form("undefined".repeat(3)));
-    expect(locationOf(res).searchParams.get("problem")).toBe("code");
   });
 });
 
@@ -200,7 +183,7 @@ describe("handleSendNow", () => {
     const dailyItems = selectAlertItems(DRAFT_AND_FAR, { id: "owner" }, { now: NOW, horizonEnd: horizonFor(h.deps.config, NOW), appUrl: ORIGIN });
     expect(dailyItems, "the daily selector would skip the undated draft and the post 3 days out").toHaveLength(0);
 
-    const res = await handleSendNow(form(CRON), h.deps);
+    const res = await handleSendNow(post(), h.deps, asOwner);
     expect(locationOf(res).search).toBe("?sent=1&issues=2");
     expect(h.sent).toHaveLength(1);
     expect(h.windows[0]).toMatchObject({ includeDrafts: true });
@@ -221,17 +204,17 @@ describe("handleSendNow", () => {
   it("refuses a second press within 60 seconds and does not send again", async () => {
     const h = harness({ report: DRAFT_AND_FAR });
     await h.ready();
-    expect(locationOf(await handleSendNow(form(CRON), h.deps)).search).toBe("?sent=1&issues=2");
-    expect(locationOf(await handleSendNow(form(CRON), h.deps)).searchParams.get("problem")).toBe("test-wait");
+    expect(locationOf(await handleSendNow(post(), h.deps, asOwner)).search).toBe("?sent=1&issues=2");
+    expect(locationOf(await handleSendNow(post(), h.deps, asOwner)).searchParams.get("problem")).toBe("test-wait");
     expect(h.sent).toHaveLength(1);
   });
 
   it("a new press after the rate-limit window uses a new idempotency key", async () => {
     const h = harness({ report: DRAFT_AND_FAR });
     await h.ready();
-    await handleSendNow(form(CRON), h.deps);
+    await handleSendNow(post(), h.deps, asOwner);
     h.advance(60_001);
-    await handleSendNow(form(CRON), h.deps);
+    await handleSendNow(post(), h.deps, asOwner);
     expect(h.sent).toHaveLength(2);
     expect(h.sent[0]!.idempotencyKey).not.toBe(h.sent[1]!.idempotencyKey);
   });
@@ -241,7 +224,7 @@ describe("handleSendNow", () => {
     await h.ready();
     const cronRelease = await h.store.acquireLock("alerts-run", 10 * 60_000);
     expect(cronRelease).not.toBeNull();
-    expect(locationOf(await handleSendNow(form(CRON), h.deps)).search).toBe("?sent=1&issues=2");
+    expect(locationOf(await handleSendNow(post(), h.deps, asOwner)).search).toBe("?sent=1&issues=2");
     expect(h.sent).toHaveLength(1);
     const lockKeys = keysOf(h.redis, "lock").map((args) => String(args[1]));
     expect(lockKeys).toContain("pg:alerts:lock:alerts-run");
@@ -260,25 +243,47 @@ describe("handleSendNow", () => {
       },
     });
     await h.ready();
-    expect(locationOf(await handleSendNow(form(CRON), h.deps)).searchParams.get("problem")).toBe("test-mail");
+    expect(locationOf(await handleSendNow(post(), h.deps, asOwner)).searchParams.get("problem")).toBe("test-mail");
     expect(keysOf(h.redis, "claim")).toHaveLength(0);
     expect(keysOf(h.redis, "last")).toHaveLength(0);
   });
 
-  it("a wrong code does not take the rate-limit lock or read the queue", async () => {
+  it("anyone but the owner does not take the rate-limit lock, read the queue or send", async () => {
     const h = harness({ report: DRAFT_AND_FAR });
     await h.ready();
-    const res = await handleSendNow(form("nope-nope-nope-nope-nope"), h.deps);
-    expect(locationOf(res).searchParams.get("problem")).toBe("code");
+    const cases: Array<[OwnerAccess, string]> = [
+      [{ status: "signed-out" }, "signin"],
+      [{ status: "not-owner" }, "owner"],
+      [{ status: "unavailable" }, "check"],
+    ];
+    for (const [access, problem] of cases) {
+      const res = await handleSendNow(post(), h.deps, async () => access);
+      expect(locationOf(res).searchParams.get("problem")).toBe(problem);
+    }
+    const refresh = locationOf(await handleSendNow(post(), h.deps, async () => ({ status: "refresh" })));
+    expect(refresh.pathname).toBe("/api/auth/refresh");
     expect(h.windows).toHaveLength(0);
     expect(h.sent).toHaveLength(0);
     expect(keysOf(h.redis, "lock")).toHaveLength(0);
-    expect(locationOf(await handleSendNow(form(CRON), h.deps)).search).toBe("?sent=1&issues=2");
+    expect(locationOf(await handleSendNow(post(), h.deps, asOwner)).search).toBe("?sent=1&issues=2");
+  });
+
+  it("a cross-site POST never reaches the owner check", async () => {
+    const h = harness({ report: DRAFT_AND_FAR });
+    await h.ready();
+    let asked = false;
+    const res = await handleSendNow(post({ origin: "https://evil.example" }), h.deps, async () => {
+      asked = true;
+      return { status: "owner", accountId: "acct-owner", claim: false };
+    });
+    expect(res.status).toBe(403);
+    expect(asked).toBe(false);
+    expect(h.sent).toHaveLength(0);
   });
 
   it("with no saved grant it does not send", async () => {
     const h = harness({ report: DRAFT_AND_FAR, withSubscriber: false });
-    expect(locationOf(await handleSendNow(form(CRON), h.deps)).searchParams.get("problem")).toBe("test-grant");
+    expect(locationOf(await handleSendNow(post(), h.deps, asOwner)).searchParams.get("problem")).toBe("test-grant");
     expect(h.sent).toHaveLength(0);
     expect(h.windows).toHaveLength(0);
   });
@@ -289,7 +294,7 @@ describe("handleSendNow", () => {
     h.deps.reader.scan = async () => {
       throw new BufferAuthError("Alerts are not connected to Buffer. Turn them on again at /alerts/setup.");
     };
-    expect(locationOf(await handleSendNow(form(CRON), h.deps)).searchParams.get("problem")).toBe("test-grant");
+    expect(locationOf(await handleSendNow(post(), h.deps, asOwner)).searchParams.get("problem")).toBe("test-grant");
     expect(h.sent).toHaveLength(0);
     expect(keysOf(h.redis, "claim")).toHaveLength(0);
   });
@@ -300,7 +305,7 @@ describe("handleSendNow", () => {
     h.deps.reader.scan = async () => {
       throw new Error("Buffer did not answer");
     };
-    expect(locationOf(await handleSendNow(form(CRON), h.deps)).searchParams.get("problem")).toBe("test-read");
+    expect(locationOf(await handleSendNow(post(), h.deps, asOwner)).searchParams.get("problem")).toBe("test-read");
     expect(h.sent).toHaveLength(0);
   });
 
@@ -308,7 +313,7 @@ describe("handleSendNow", () => {
     const quiet = report([card({ priority: "ready", status: "draft", dueAt: null })], []);
     const h = harness({ report: quiet });
     await h.ready();
-    expect(locationOf(await handleSendNow(form(CRON), h.deps)).searchParams.get("problem")).toBe("test-empty");
+    expect(locationOf(await handleSendNow(post(), h.deps, asOwner)).searchParams.get("problem")).toBe("test-empty");
     expect(h.sent).toHaveLength(0);
     expect(h.windows[0]?.includeDrafts).toBe(true);
   });
@@ -320,7 +325,7 @@ describe("handleSendNow", () => {
     );
     const h = harness({ report: mild });
     await h.ready();
-    expect(locationOf(await handleSendNow(form(CRON), h.deps)).search).toBe("?sent=1&issues=1");
+    expect(locationOf(await handleSendNow(post(), h.deps, asOwner)).search).toBe("?sent=1&issues=1");
     expect(h.sent[0]!.message.text).toContain("[Medium]");
     expect(h.sent[0]!.message.text).toMatch(/every severity/i);
     expect(h.sent[0]!.message.subject.startsWith("[Test] ")).toBe(true);

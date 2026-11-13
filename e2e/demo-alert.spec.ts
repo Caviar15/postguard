@@ -59,12 +59,25 @@ test("the cron endpoint and the unsubscribe link are closed to strangers", async
   expect(await unsub.text()).toContain('method="post"');
 });
 
-test("alert setup asks for the setup code and shows no token", async ({ page }) => {
+test("alert setup shows no code box and no token, and no switch to a stranger", async ({ page }) => {
   await page.goto("/alerts/setup");
   await expect(page.getByRole("heading", { name: "Alerts that come to you." })).toBeVisible();
-  await expect(page.getByLabel(/Setup code/)).toBeVisible();
+  // Signed out (and, locally, with no Buffer app configured): nothing to type, no switch, no test button.
+  await expect(page.locator('input[type="password"]')).toHaveCount(0);
+  await expect(page.getByLabel(/Setup code/)).toHaveCount(0);
+  await expect(page.getByRole("switch")).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Send test alert now" })).toHaveCount(0);
   // It must not say which settings exist: no variable names, no "set / not set" list.
   const text = await page.locator("body").innerText();
-  for (const name of ["CRON_SECRET", "RESEND_API_KEY", "ALERT_EMAIL_TO", "KV_REST_API", "UPSTASH", "SESSION_SECRET"]) expect(text).not.toContain(name);
+  for (const name of ["CRON_SECRET", "RESEND_API_KEY", "ALERT_EMAIL_TO", "ALERT_OWNER", "KV_REST_API", "UPSTASH", "SESSION_SECRET"]) expect(text).not.toContain(name);
   await expect(page.locator("body")).not.toContainText("refresh_token");
+});
+
+test("the main page and the dashboard link to the alerts page", async ({ page }) => {
+  await page.goto("/");
+  await page.getByRole("link", { name: "Email alerts" }).click();
+  await expect(page).toHaveURL(/\/alerts\/setup$/);
+  await page.goto("/demo");
+  await page.getByRole("link", { name: "Email alerts" }).click();
+  await expect(page).toHaveURL(/\/alerts\/setup$/);
 });
