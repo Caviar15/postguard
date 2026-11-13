@@ -29,7 +29,9 @@ const SKEW_MS = 60_000;
 const SAVE_ATTEMPTS = 3;
 const SAVE_RETRY_MS = 250;
 const WAIT_STEP_MS = 400;
-const WAIT_STEPS = 12;
+// Wait at least as long as one refresh may take (refreshAccessToken times out at 15 s), plus the save: a caller
+// that gives up earlier fails a run whose token was about to be ready (e.g. a real run next to a dry run).
+const WAIT_STEPS = 45; // 46 waits x 400 ms = 18.4 s
 
 /**
  * An access token for the background run.
